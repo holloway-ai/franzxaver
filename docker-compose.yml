@@ -104,13 +104,22 @@ services:
         - traefik.http.services.${STACK_NAME?Variable not set}-pgadmin.loadbalancer.server.port=5050
 
   queue:
+    profiles:
+      - flower
     # image: rabbitmq:3
     # Using the below image instead is required to enable the "Broker" tab in the flower UI:
     image: rabbitmq:3-management
     #
     # You also have to change the flower command
-  
+  redis:
+    restart: unless-stopped
+    image: redis:7.0.5-alpine
+    expose:
+      - 6379
+
   flower:
+    profiles:
+      - flower
     image: mher/flower
     networks:
       - ${TRAEFIK_PUBLIC_NETWORK?Variable not set}
@@ -139,11 +148,12 @@ services:
         - traefik.http.routers.${STACK_NAME?Variable not set}-flower-https.tls=true
         - traefik.http.routers.${STACK_NAME?Variable not set}-flower-https.tls.certresolver=le
         - traefik.http.services.${STACK_NAME?Variable not set}-flower.loadbalancer.server.port=5555
-  
+
   backend:
     image: '${DOCKER_IMAGE_BACKEND?Variable not set}:${TAG-latest}'
     depends_on:
       - db
+      - redis
     env_file:
       - .env
     environment:
@@ -162,12 +172,12 @@ services:
         - traefik.constraint-label-stack=${TRAEFIK_TAG?Variable not set}
         - traefik.http.routers.${STACK_NAME?Variable not set}-backend-http.rule=PathPrefix(`/api`) || PathPrefix(`/docs`) || PathPrefix(`/redoc`)
         - traefik.http.services.${STACK_NAME?Variable not set}-backend.loadbalancer.server.port=80
-  
+
   celeryworker:
     image: '${DOCKER_IMAGE_CELERYWORKER?Variable not set}:${TAG-latest}'
     depends_on:
       - db
-      - queue
+      - redis
     env_file:
       - .env
     environment:
@@ -180,7 +190,7 @@ services:
       dockerfile: celeryworker.dockerfile
       args:
         INSTALL_DEV: ${INSTALL_DEV-false}
-  
+
   frontend:
     image: '${DOCKER_IMAGE_FRONTEND?Variable not set}:${TAG-latest}'
     build:
@@ -196,6 +206,7 @@ services:
 
 volumes:
   app-db-data:
+
 
 networks:
   traefik-public:

@@ -2,6 +2,8 @@
 # From https://github.com/tiangolo/uvicorn-gunicorn-docker/blob/master/docker-images/start.sh
 set -e
 
+poetry install
+
 if [ -f /app/app/main.py ]; then
     DEFAULT_MODULE_NAME=app.main
 elif [ -f /app/main.py ]; then

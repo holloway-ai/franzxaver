@@ -1,7 +1,7 @@
 from typing import Generator
 
-from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi import Depends, HTTPException, status, Security
+from fastapi.security import OAuth2PasswordBearer,APIKeyHeader
 from jose import jwt
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
@@ -14,8 +14,17 @@ from app.db.session import SessionLocal
 reusable_oauth2 = OAuth2PasswordBearer(
     tokenUrl=f"{settings.API_V1_STR}/login/access-token"
 )
+api_key_header = APIKeyHeader(name="access_token", auto_error=False)
 
-
+async def get_api_key(api_key_header: str = Security(api_key_header)):
+    if api_key_header == "joan":
+        return api_key_header   
+    else:
+        raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Could not validate API key",
+                )
+        
 def get_db() -> Generator:
     try:
         db = SessionLocal()
@@ -41,7 +50,6 @@ def get_current_user(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return user
-
 
 def get_current_active_user(
     current_user: models.User = Depends(get_current_user),
