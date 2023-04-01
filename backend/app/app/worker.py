@@ -17,7 +17,7 @@ def test_celery(word: str) -> str:
 
 
 @celery_app.task(acks_late=True)
-def process_video (video = schemas.Video) -> schemas.Result:
+def process_video (video = schemas.VideoRequest) -> schemas.Result:
     """
     Process video and return result.
     Currently just updates the status of the job every second sending Status object.
@@ -40,7 +40,7 @@ def process_video (video = schemas.Video) -> schemas.Result:
         )
         logger.info("update_state {video.url}}")
         sleep(1)
-    res = schemas.Result(result = "Video markdown here\n but I am not sure yet.")
+    res = schemas.VmarkdownDocument(vmarkdown = "Video markdown here\n but I am not sure yet.")
     current_task.update_state(
             state="PROGRESS",
             meta=schemas.Status(
@@ -48,7 +48,7 @@ def process_video (video = schemas.Video) -> schemas.Result:
                 totalAmount=100,
                 description="All done!",
                 status="finished",
-                result=res.result,
+                result=res.vmarkdown,
                 
             ).to_json()
     )

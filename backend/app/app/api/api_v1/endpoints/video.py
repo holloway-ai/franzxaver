@@ -20,7 +20,7 @@ router = APIRouter()
 @router.post("/", response_model=schemas.Job)
 def transcribe(
     *,
-    video: schemas.Video,
+    video: schemas.VideoRequest,
     api_key: APIKey = Depends(deps.get_api_key),
 ) -> Any:
     job = celery_app.send_task("app.worker.process_video", args=[video.to_json()])
@@ -38,7 +38,7 @@ def get_result_by_id(
         else:
             raise HTTPException(status_code=404, detail="Job not found")
         
-    return schemas.Result(result=task.result)
+    return schemas.VmarkdownDocument(vmarkdown=task.result)
 
 STREAM_DELAY = 1  # second
 

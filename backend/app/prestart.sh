@@ -1,6 +1,5 @@
 #! /usr/bin/env bash
 
-cd poetry install 
 # Let the DB start
 python /app/app/backend_pre_start.py
 
