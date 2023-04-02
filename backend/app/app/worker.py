@@ -24,9 +24,11 @@ def process_video (video = schemas.VideoRequest) -> schemas.Result:
     At finish, sends Result object.
     
     """
-    logger.info("Processing video {video.url}}")
-    
-    for i in range(100):
+    video = schemas.VideoRequest.parse_obj(video)
+    logger.info(f"Processing video {video.url}")
+
+    steps = int(video.description) if video.description.isdigit() else 30    
+    for i in range(steps):
          
         current_task.update_state(
             state="PROGRESS",
@@ -40,17 +42,20 @@ def process_video (video = schemas.VideoRequest) -> schemas.Result:
         )
         logger.info("update_state {video.url}}")
         sleep(1)
-    res = schemas.VmarkdownDocument(vmarkdown = "Video markdown here\n but I am not sure yet.")
-    current_task.update_state(
-            state="PROGRESS",
-            meta=schemas.Status(
+    res = schemas.Status(
                 progress=i,
                 totalAmount=100,
                 description="All done!",
                 status="finished",
-                result=res.vmarkdown,
-                
-            ).to_json()
+                result= schemas.VmarkdownDocument(
+                    vmarkdown = "Video markdown here\n but I am not sure yet."
+                )
+            )
+    
+    
+    current_task.update_state(
+            state="PROGRESS",
+            meta=res.to_json()
     )
     logger.info("finish {video.url}}")
     return res.to_json()

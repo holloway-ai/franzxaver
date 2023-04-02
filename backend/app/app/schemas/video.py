@@ -4,6 +4,7 @@ from enum import Enum
 from pydantic import BaseModel, AnyHttpUrl, ValidationError
 from fastapi.encoders import jsonable_encoder
 
+
 class JsonBaseModel(BaseModel):
     def to_json(self):
         return jsonable_encoder(self)
@@ -31,13 +32,7 @@ class JobStatusEnum(str, Enum):
     error = "error"
 
 
-# Status of the job
-class Status(JsonBaseModel):
-    progress: int
-    totalAmount: int
-    description: str
-    status: JobStatusEnum
-    result: Optional[Any] = None
+
     
 class BaseDocument(JsonBaseModel):
     resultType: DocumentTypeEnum 
@@ -55,3 +50,12 @@ class HtmlDocument(BaseDocument):
 
 # Job result
 Result = Union[VmarkdownDocument, HtmlDocument]
+
+
+# Status of the job
+class Status(JsonBaseModel):
+    progress: int
+    totalAmount: int
+    description: str
+    status: JobStatusEnum
+    result: Optional[Result] = None

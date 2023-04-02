@@ -33,12 +33,9 @@ def get_result_by_id(
 ) -> Any:
     task = celery_app.AsyncResult(job_id)
     if not task.ready():
-        if task.state == 'PROGRESS':
-            raise HTTPException(status_code=202, detail="Job is still in progress")
-        else:
-            raise HTTPException(status_code=404, detail="Job not found")
-        
-    return schemas.VmarkdownDocument(vmarkdown=task.result)
+        raise HTTPException(status_code=202, detail=f"Job is still {task.state}")
+    status = schemas.Status.parse_obj(task.result)
+    return status.result
 
 STREAM_DELAY = 1  # second
 
@@ -57,7 +54,7 @@ async def message_stream(
             if await request.is_disconnected():
                 break
             
-            yield [task.info]
+            yield [schemas.Status.parse_obj(task.info).json()]
             if task.ready():
                 break
             await asyncio.sleep(STREAM_DELAY)
