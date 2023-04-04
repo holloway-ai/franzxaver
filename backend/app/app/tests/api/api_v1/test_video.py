@@ -70,5 +70,5 @@ async def test_video_all(
         print(job_result.vmarkdown)
         print(stream_result.vmarkdown)
         assert job_result.vmarkdown[:10] == stream_result.vmarkdown[:10]
-        #assert job_result.vmarkdown == stream_result.vmarkdown
+        assert job_result.vmarkdown == stream_result.vmarkdown
         

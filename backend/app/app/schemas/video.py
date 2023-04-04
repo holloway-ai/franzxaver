@@ -59,3 +59,6 @@ class Status(JsonBaseModel):
     description: str
     status: JobStatusEnum
     result: Optional[Result] = None
+    def __str__(self) -> str:
+
+        return f"[{self.json()}]"

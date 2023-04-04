@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app import crud, models, schemas
 from app.api import deps
-from sse_starlette.sse import EventSourceResponse
+from sse_starlette import EventSourceResponse, ServerSentEvent
 import asyncio
 from celery.result import AsyncResult
 from app.core.celery_app import celery_app
@@ -54,7 +54,7 @@ async def message_stream(
             if await request.is_disconnected():
                 break
             
-            yield [schemas.Status.parse_obj(task.info).json()]
+            yield ServerSentEvent(data = schemas.Status.parse_obj(task.info))
             if task.ready():
                 break
             await asyncio.sleep(STREAM_DELAY)

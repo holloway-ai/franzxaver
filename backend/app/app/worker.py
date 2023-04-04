@@ -25,7 +25,7 @@ def process_video (video = schemas.VideoRequest) -> schemas.Result:
     
     """
     video = schemas.VideoRequest.parse_obj(video)
-    logger.info(f"Processing video {video.url}")
+    logger.info(f"Processing video {video.url}\n {video.description}")
 
     steps = int(video.description) if video.description.isdigit() else 30    
     for i in range(steps):
@@ -34,17 +34,17 @@ def process_video (video = schemas.VideoRequest) -> schemas.Result:
             state="PROGRESS",
             meta=schemas.Status(
                 progress=i,
-                totalAmount=100,
-                description=f"Working {i/100}",
+                totalAmount=steps,
+                description=f"Working {i/steps}",
                 status="working",
                 result=None,
             ).to_json()
         )
-        logger.info("update_state {video.url}}")
+        logger.info(f"update_state {video.url}")
         sleep(1)
     res = schemas.Status(
                 progress=i,
-                totalAmount=100,
+                totalAmount=steps,
                 description="All done!",
                 status="finished",
                 result= schemas.VmarkdownDocument(
@@ -57,6 +57,6 @@ def process_video (video = schemas.VideoRequest) -> schemas.Result:
             state="PROGRESS",
             meta=res.to_json()
     )
-    logger.info("finish {video.url}}")
+    logger.info(f"finish {video.url}}")
     return res.to_json()
 
