@@ -8,7 +8,7 @@ from celery import shared_task, current_task
 import logging
 
 logger = logging.getLogger(__name__)
-#client_sentry = Client(settings.SENTRY_DSN)
+# client_sentry = Client(settings.SENTRY_DSN)
 
 
 @celery_app.task(acks_late=True)
@@ -17,19 +17,18 @@ def test_celery(word: str) -> str:
 
 
 @celery_app.task(acks_late=True)
-def process_video (video = schemas.VideoRequest) -> schemas.Result:
+def process_video(video=schemas.VideoRequest) -> schemas.Result:
     """
     Process video and return result.
     Currently just updates the status of the job every second sending Status object.
     At finish, sends Result object.
-    
+
     """
     video = schemas.VideoRequest.parse_obj(video)
     logger.info(f"Processing video {video.url}\n {video.description}")
 
-    steps = int(video.description) if video.description.isdigit() else 30    
+    steps = int(video.description) if video.description.isdigit() else 30
     for i in range(steps):
-         
         current_task.update_state(
             state="PROGRESS",
             meta=schemas.Status(
@@ -38,25 +37,20 @@ def process_video (video = schemas.VideoRequest) -> schemas.Result:
                 description=f"Working {i/steps}",
                 status="working",
                 result=None,
-            ).to_json()
+            ).to_json(),
         )
         logger.info(f"update_state {video.url}")
         sleep(1)
     res = schemas.Status(
-                progress=i,
-                totalAmount=steps,
-                description="All done!",
-                status="finished",
-                result= schemas.VmarkdownDocument(
-                    vmarkdown = "Video markdown here\n but I am not sure yet."
-                )
-            )
-    
-    
-    current_task.update_state(
-            state="PROGRESS",
-            meta=res.to_json()
+        progress=i,
+        totalAmount=steps,
+        description="All done!",
+        status="finished",
+        result=schemas.VmarkdownDocument(
+            vmarkdown="Video markdown here\n but I am not sure yet."
+        ),
     )
-    logger.info(f"finish {video.url}}")
-    return res.to_json()
 
+    current_task.update_state(state="PROGRESS", meta=res.to_json())
+    logger.info(f"finish {video.url}")
+    return res.to_json()
