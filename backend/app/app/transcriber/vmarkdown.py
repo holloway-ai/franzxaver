@@ -8,7 +8,7 @@ import re
 import Levenshtein
 
 logger = logging.getLogger(__name__)
-dump_path = Path ("session_data/{date:%Y-%m-%d_%H:%M:%S}".format( date=datetime.datetime.now()))
+
 
 
 
@@ -227,6 +227,8 @@ def test_format_transcription():
     clean_res = re.sub(r"{~\d+.\d+}", "", result).replace("  ", " ").replace("\n ", "\n").replace(" \n", "\n")
     
 def clean_header(formatted_result, context, next_line):
+    model_intro = "Here's the text in markdown format:"
+
 
     def cut_by_context(content_pos):
         pos = content_pos -1
@@ -237,12 +239,17 @@ def clean_header(formatted_result, context, next_line):
             if formatted_result[pos] =="#": # header
                 return formatted_result[prev_line_pos:]
         return formatted_result[content_pos:]
-        
-    context_lines = [] if context is None else context.split("\n")
-    last_context_line_index = len(context_lines) -1
-    while last_context_line_index >= 0 and context_lines[last_context_line_index] == "":
-        last_context_line_index -= 1
-    context_line = "" if last_context_line_index < 0 else context_lines[last_context_line_index].strip()
+    intro_pos = formatted_result.find(model_intro)
+    if intro_pos > 0:
+        logger.info(f"Removing model intro at {intro_pos}")
+        formatted_result = formatted_result[intro_pos+len(model_intro):].lstrip("\n ")
+    context_line = ""
+    if context is not None:
+        i = len(context) -1
+        while i >=0 and context[i] in [" ", "\n"]:
+            i -= 1
+        i = max(context[:i].rfind("\n"),0)
+        context_line = context[i:].strip()
     
     context_end_pos = formatted_result.find(context_line) if context_line != "" else -1
     if context_end_pos > 0:
@@ -251,7 +258,6 @@ def clean_header(formatted_result, context, next_line):
     next_line= next_line.strip()
     new_content_pos = formatted_result.find(next_line)
     
-
     if new_content_pos < 0:
         if context_end_pos > 0:
             logger.info(f"Can't find next line {next_line} removing results with context to pos {context_end_pos}")
@@ -269,16 +275,20 @@ def clean_header(formatted_result, context, next_line):
         return cut_by_context(new_content_pos)
     return formatted_result
 
-def dump_json (data, file_name):
-    dump_path.mkdir(parents=True, exist_ok=True)
-    with (dump_path / file_name ).open("w") as f:
-        json.dump(data,f) 
-def dump_text (text, file_name):
-    dump_path.mkdir(parents=True, exist_ok=True)
-    with (dump_path / file_name ).open("w") as f:
-        f.write(text)
     
-def format_transcription (transcript ,progress_callback = None, step =0, total_steps =100):
+def format_transcription (transcript ,progress_callback = None, step =0, total_steps =100, dump_path = None):
+    def dump_json (data, file_name):
+        if dump_path is None:
+            return
+        dump_path.mkdir(parents=True, exist_ok=True)
+        with (dump_path / file_name ).open("w") as f:
+            json.dump(data,f) 
+    def dump_text (text, file_name):
+        if dump_path is None:
+            return
+        dump_path.mkdir(parents=True, exist_ok=True)
+        with (dump_path / file_name ).open("w") as f:
+            f.write(text)
     
     seg_index = 0
     stuck_count = 0
@@ -340,5 +350,6 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     test_next_block()
     test_add_timestamps()
-    res = format_transcription (transcript = get_test_transcript("transcript_1.json"))
+    dump_path = Path ("session_data/{date:%Y-%m-%d_%H:%M:%S}".format( date=datetime.datetime.now()))
+    res = format_transcription (transcript = get_test_transcript("transcript_1.json"), dump_path= dump_path)
     print (res)

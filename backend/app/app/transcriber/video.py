@@ -3,10 +3,10 @@ import openai
 import os
 
 
-def download_video(url):
+def download_video(url,target_path):
     ydl_opts = {
         'format': 'm4a/bestaudio/best',
-        "outtmpl": "audio",
+        "outtmpl": str(target_path/"audio"),
         # ℹ️ See help(yt_dlp.postprocessor) for a list of available Postprocessors and their arguments
         'postprocessors': [{  # Extract audio using ffmpeg
             'key': 'FFmpegExtractAudio',
@@ -18,7 +18,7 @@ def download_video(url):
         error_code = ydl.download([url]) 
     if error_code != 0:
         raise Exception("Error downloading video")
-    return "audio.mp3"
+    return target_path/"audio.mp3"
 
 def transcribe(file_name):
     #openai.api_key = os.environ["OPENAI_API_KEY"]
