@@ -185,6 +185,7 @@ services:
       - SERVER_HOST=https://${DOMAIN?Variable not set}
       # Allow explicit env var override for tests
       - SMTP_HOST=${SMTP_HOST?Variable not set}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
     build:
       context: ./backend
       dockerfile: celeryworker.dockerfile

@@ -29,6 +29,9 @@ python-dotenv = "^1.0.0"
 redis = "^4.5.4"
 importlib-metadata = "^6.1.0"
 kombu = "^5.2.4"
+yt-dlp = "^2023.3.4"
+openai = "^0.27.4"
+levenshtein = "^0.20.9"
 
 [tool.poetry.group.dev.dependencies]
 pytest-cov = "^4.0.0"

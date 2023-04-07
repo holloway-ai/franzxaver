@@ -2,10 +2,12 @@ from raven import Client
 
 from app.core.celery_app import celery_app
 from app.core.config import settings
+from app.transcriber import download_video, transcribe, format_transcription
 from app import schemas
 from time import sleep
 from celery import shared_task, current_task
 import logging
+import json
 
 logger = logging.getLogger(__name__)
 # client_sentry = Client(settings.SENTRY_DSN)
@@ -15,6 +17,18 @@ logger = logging.getLogger(__name__)
 def test_celery(word: str) -> str:
     return f"test task return {word}"
 
+def update_status( step, steps =100 , description=None) :
+    logger.info(f"{step/steps:%} - {description}")
+    current_task.update_state(
+        state="PROGRESS",
+        meta=schemas.Status(
+                progress=step,
+                totalAmount=steps,
+                description=f"Working {step/steps:%}" if description is None else description,
+                status="working",
+                result=None,
+            ).to_json(),
+    )
 
 @celery_app.task(acks_late=True)
 def process_video(video=schemas.VideoRequest) -> schemas.Result:
@@ -27,27 +41,23 @@ def process_video(video=schemas.VideoRequest) -> schemas.Result:
     video = schemas.VideoRequest.parse_obj(video)
     logger.info(f"Processing video {video.url}\n {video.description}")
 
-    steps = int(video.description) if video.description.isdigit() else 30
-    for i in range(steps):
-        current_task.update_state(
-            state="PROGRESS",
-            meta=schemas.Status(
-                progress=i,
-                totalAmount=steps,
-                description=f"Working {i/steps}",
-                status="working",
-                result=None,
-            ).to_json(),
-        )
-        logger.info(f"update_state {video.url}")
-        sleep(1)
+    update_status(0, description="Downloading video")
+    audio_file = download_video(video.url)
+    update_status(10, description="Transcribing video")
+    transcript = transcribe(audio_file)
+    with open("transcript.json", "w") as f:
+        json.dump(transcript, f)
+    update_status(20, description="Formatting")
+    vmarkdown = format_transcription(transcript, update_status, 20, 100)
+    vmarkdown = f"\n?[]({video.url})\n\n{vmarkdown}" 
+    
     res = schemas.Status(
-        progress=i,
-        totalAmount=steps,
+        progress=100,
+        totalAmount=100,
         description="All done!",
         status="finished",
         result=schemas.VmarkdownDocument(
-            vmarkdown="Video markdown here\n but I am not sure yet."
+            vmarkdown=vmarkdown
         ),
     )
 
