@@ -21,6 +21,9 @@ def client() -> Generator:
     with TestClient(app) as c:
         yield c
 
+@pytest.fixture(scope="module")
+def api_token_headers() -> Dict[str, str]:
+    return {"access_token": "joan"}
 
 @pytest.fixture(scope="module")
 def superuser_token_headers(client: TestClient) -> Dict[str, str]:

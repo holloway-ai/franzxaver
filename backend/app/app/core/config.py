@@ -2,7 +2,7 @@ import secrets
 from typing import Any, Dict, List, Optional, Union
 
 from pydantic import AnyHttpUrl, BaseSettings, EmailStr, HttpUrl, PostgresDsn, validator
-
+from dotenv import load_dotenv
 
 class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
@@ -85,5 +85,5 @@ class Settings(BaseSettings):
     class Config:
         case_sensitive = True
 
-
+load_dotenv("../../.env")
 settings = Settings()

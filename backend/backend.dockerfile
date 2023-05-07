@@ -1,4 +1,4 @@
-FROM python:3.10
+FROM python:3.10-slim-buster
 
 # Incorporates former base image setup from https://github.com/tiangolo/uvicorn-gunicorn-docker
 
@@ -8,9 +8,8 @@ RUN pip install --no-cache-dir gunicorn==20.1.0
 EXPOSE 80
 
 # Install Poetry
-RUN curl -sSL https://install.python-poetry.org | POETRY_HOME=/opt/poetry python3
-ENV PATH="/opt/poetry/bin:$PATH"
-RUN poetry config virtualenvs.create false
+RUN pip install --no-cache-dir poetry && \
+    poetry config virtualenvs.create false
 
 # Copy poetry.lock* in case it doesn't exist in the repo
 COPY ./app/pyproject.toml ./app/poetry.lock* /app/
