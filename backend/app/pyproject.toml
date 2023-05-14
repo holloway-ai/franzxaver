@@ -32,6 +32,10 @@ kombu = "^5.2.4"
 yt-dlp = "^2023.3.4"
 openai = "^0.27.4"
 levenshtein = "^0.20.9"
+opencv-python = "^4.7.0.72"
+scenedetect = "^0.6.1"
+boto3 = "^1.26.131"
+ffmpeg-python = "^0.2.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest-cov = "^4.0.0"

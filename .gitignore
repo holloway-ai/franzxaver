@@ -2,3 +2,4 @@
 .mypy_cache
 docker-stack.yml
 session_data
+aws
