@@ -2,6 +2,7 @@ import yt_dlp
 import openai
 import os
 import ffmpeg
+from app.core.config import settings
 
 
 def download_video(url, target_path):
@@ -29,6 +30,9 @@ def transcribe(file_name):
     # response_format: 'json', 'text', 'vtt', 'srt', 'verbose_json'
     with open(file_name, "rb") as audio_file:
         transcript = openai.Audio.transcribe(
-            "whisper-1", audio_file, response_format="verbose_json"
+            "whisper-1",
+            audio_file,
+            response_format="verbose_json",
+            api_key=settings.OPENAI_API,
         )
     return transcript
