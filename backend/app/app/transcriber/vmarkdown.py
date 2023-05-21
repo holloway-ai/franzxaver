@@ -334,7 +334,7 @@ def clean_header(formatted_result, context, next_line):
 
 
 def insert_slides(text, slides):
-    if slides is None:
+    if slides is None or len(slides) == 0 or len(text) == 0:
         return text
     re_block = re.compile(r"^\{~(?P<begin>\d+\.\d+)\}.*\{~(?P<end>\d+\.\d+)\} ?$")
     paragraphs = text.split("\n")
@@ -346,9 +346,11 @@ def insert_slides(text, slides):
             begin = float(m.group("begin"))
             end = float(m.group("end"))
             while current_slide < len(slides) and slides[current_slide][0] < end:
+                result.append("")
                 result.append(
                     f"![{{~{slides[current_slide][0]:.2f}}}]({slides[current_slide][1]})"
                 )
+                result.append("")
                 current_slide += 1
 
         result.append(par)

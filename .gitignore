@@ -4,3 +4,4 @@ docker-stack.yml
 session_data
 aws
 secrets
+.env
