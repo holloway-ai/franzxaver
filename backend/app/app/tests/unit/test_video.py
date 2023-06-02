@@ -3,6 +3,7 @@ from pathlib import Path
 from urllib.request import urlopen
 import pytest
 import json
+import re
 
 data_path = Path("test_data/pydata")
 video_path = data_path / "video.mkv"
@@ -45,6 +46,7 @@ def test_transcribe(dump_path):
 
 def test_format(dump_path):
     from app.transcriber import format_transcription
+    from Levenshtein import ratio
 
     with transcript_path.open() as f:
         transcript = json.load(f)
@@ -52,9 +54,23 @@ def test_format(dump_path):
         slides = json.load(f)
 
     results = format_transcription(transcript, dump_path=dump_path, slides=slides)
-    last_line = transcript["segments"][-1]["text"]
-    assert results.find(last_line) > 0
+    
+    re_img_str = r"\n*!\[\{\~.*\}\]\(.*\)\n*"
+    re_ts_str = r" *\{\~\d+\.\d+\} *"
+    re_header_str = r"#.*\n+"
+    re_addons = re.compile(f"({re_img_str}|{re_ts_str}|{re_header_str})")
+    res = re.sub(r"[ \n]+"," ",re_addons.sub(" ",results))
+    trans = re.sub(r"[ \n]+"," "," ".join([seg["text"] for seg in transcript["segments"]]))
+    toc_input = re.split(r"([~\w']+)", trans)
+    toc_res = re.split(r"([~\w']+)", res)
+
     assert len(results) > 0
+    assert not re.search(re_img_str, results) is None
+    assert not re.search(re_ts_str, results) is None
+    assert not re.search(re_header_str, results) is None
+    assert ratio(toc_input,toc_res) > 0.95
+    
+
 
 
 def test_insert_slides():
