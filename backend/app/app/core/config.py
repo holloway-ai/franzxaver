@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional, Union
 from pydantic import AnyHttpUrl, BaseSettings, EmailStr, HttpUrl, PostgresDsn, validator
 from dotenv import load_dotenv
 
+
 class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
     SECRET_KEY: str = secrets.token_urlsafe(32)
@@ -81,9 +82,13 @@ class Settings(BaseSettings):
     FIRST_SUPERUSER: EmailStr
     FIRST_SUPERUSER_PASSWORD: str
     USERS_OPEN_REGISTRATION: bool = False
+    OPENAI_API: str
 
     class Config:
-        case_sensitive = True
+        case_sensitive = False
+        env_file = ".env", "../../.env"
+        secrets_dir = "secrets"
 
-load_dotenv("../../.env")
+
+# load_dotenv("../../.env")
 settings = Settings()

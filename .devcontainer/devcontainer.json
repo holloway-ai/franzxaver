@@ -28,18 +28,36 @@
 		// Configure properties specific to VS Code.
 		"vscode": {
 			// Set *default* container specific settings.json values on container create.
-			"settings": {},
+			"settings": {
+				"python.analysis.extraPaths": [
+					"/usr/local/py-utils/venvs/poetry/lib"
+				],
+				"python.testing.pytestArgs": [
+					"."
+				],
+				"python.testing.unittestEnabled": false,
+				"python.testing.pytestEnabled": true,
+				"python.formatting.provider": "black",
+				"python.linting.mypyEnabled": true,
+				"python.linting.enabled": true,
+				"python.linting.pylintEnabled": true,
+				"python.linting.pylintPath": "pylint",
+				"python.defaultInterpreterPath": "/usr/local/py-utils/venvs/poetry/bin/python",
+				"python.venvFolders": [
+					"/usr/local/py-utils/venvs"
+				],
+				"python.venvPath": "/usr/local/py-utils/venvs/",
+				"python.poetryPath": "/usr/local/py-utils/bin/poetry"
+			},
 			// Add the IDs of extensions you want installed when the container is created.
 			"extensions": [
 				"GitHub.vscode-pull-request-github",
-				"ms-python.vscode-pylance",
 				"ms-python.python",
-				"streetsidesoftware.code-spell-checker",
 				"ms-python.black-formatter",
 				"ms-python.pylint",
-				"Vue.volar",
-				"Vue.vscode-typescript-vue-plugin"
+				"ms-python.vscode-pylance",
+				"streetsidesoftware.code-spell-checker"
 			]
 		}
-	}
-}
+	},
+	"postCreateCommand": ".devcontainer/init.sh"}

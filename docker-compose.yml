@@ -165,7 +165,7 @@ services:
       context: ./backend
       dockerfile: backend.dockerfile
       args:
-        INSTALL_DEV: ${INSTALL_DEV-false}
+        INSTALL_DEV: ${docker-false}
     deploy:
       labels:
         - traefik.enable=true

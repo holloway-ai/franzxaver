@@ -2,8 +2,7 @@ FROM python:3.10
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update && apt-get install -y ffmpeg 
-
+RUN apt-get update && apt-get install -y ffmpeg libsm6 libxext6
 WORKDIR /app/
 
 # Install Poetry
