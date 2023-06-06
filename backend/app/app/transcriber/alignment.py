@@ -278,6 +278,16 @@ class Aligner:
                         new_transcript_segment != last_transcript_segment
                     )
                     is_new_paragraph = last_markdown_paragraph != new_markdown_paragraph
+                    
+                    if (
+                        not last_transcript_segment is None
+                        and (is_segment_change or is_new_paragraph)
+                        and not last_is_header
+                    ):
+                        result_tokens.append(f"{{{last_transcript_segment}}}")
+                    if is_new_paragraph:
+                        result_tokens.append("\n\n")
+                        
                     if not context_started:
                         limit = (
                             self.context_size
@@ -291,14 +301,6 @@ class Aligner:
                             context_result_pos = len(result_tokens)
                             context_transcript_pos = transcript_pos
 
-                    if (
-                        not last_transcript_segment is None
-                        and (is_segment_change or is_new_paragraph)
-                        and not last_is_header
-                    ):
-                        result_tokens.append(f"{{{last_transcript_segment}}}")
-                    if is_new_paragraph:
-                        result_tokens.append("\n\n")
                     if (
                         not new_transcript_segment is None
                         and (is_segment_change or is_new_paragraph)

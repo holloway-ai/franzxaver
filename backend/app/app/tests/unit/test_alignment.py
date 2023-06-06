@@ -212,4 +212,10 @@ def test_alignment():
             assert continue_missing < 3
             word_count +=1
     assert missing_words / word_count < 0.21
+    
+    for par in result.split("\n\n"):
+        if not par.startswith("#"):
+            assert par.find("##") < 0, par
+            assert par.find("markdown") < 0, par
+            assert not re.match(r"^(\{\d+(\.\d+)?\}).*(\{\d+(\.\d+)?\})$", par) is None, par
         
