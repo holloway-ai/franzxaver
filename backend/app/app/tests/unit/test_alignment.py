@@ -141,13 +141,14 @@ def update_synthetic_block(current_block, step):
         )
     current_block = current_block.replace("!", "!\n\n## Next header\n\n")
     current_block = current_block.replace(".", ".\n\n")
+    current_block = current_block.strip("\n ")
     if step // 2 != 0:
         current_block = "Sure, here's the text in markdown format:\n\n" + current_block
         
     for text, replacement in replacements:
         current_block = current_block.replace(text, str(replacement))
-        
-    current_block = current_block.replace("\n"*4, "\n"*2)
+    current_block = re.sub(r"\s*\n+\s?", "\n\n", current_block)
+    #current_block = current_block.replace("\n"*4, "\n"*2)
     return current_block
 
 def test_alignment():
@@ -175,21 +176,21 @@ def test_alignment():
 
     current_block = aligner.first_block()
     print(current_block)
-    context_elements = current_block[-5:]
+    context_elements = current_block[-5:].strip()
     step = 0
     while current_block:
         print("="*20)
         print(current_block)
         initial_block = MarkdownResponse(current_block)
         assert len(initial_block) <= block_size+block_delta
-        assert len(initial_block) >= block_size-block_delta
+        assert len(initial_block) >= block_size-block_delta or aligner.is_last_block()
         assert current_block.find(context_elements) >= 0
         
         current_block = update_synthetic_block(current_block, step)
         print(">"+"-"*19)
         print(current_block)    
         formatted = MarkdownResponse(current_block)
-        context_elements = formatted.get_markdown_str(-3)
+        context_elements = formatted.get_markdown_str(-3).strip()
         
         current_block = aligner.push(formatted)
         step += 1

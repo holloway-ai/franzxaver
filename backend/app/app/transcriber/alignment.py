@@ -46,6 +46,8 @@ class Transcript:
                 if token:
                     self.tokens.append(token)
                     self.as_segment.append(sed_n)
+            self.tokens.append(" ")
+            self.as_segment.append(sed_n)
 
     def __len__(self):
         return len(self.tokens)
@@ -115,22 +117,45 @@ class MarkdownResponse:
 
     def get_markdown_str(self, start: int = 0, end: int = -1):
         """Get markdown string from tokens."""
-        result = []
+        result: List[str] = []
         if start < 0:
             start = len(self) + start
         if end < 0:
             end = len(self) + end
         last_paragraph = self.as_paragraph[start]
-        for i in range(start, end):
-            result.append(self.tokens[i])
+        for i in range(start, end+1):
             if self.as_paragraph[i] != last_paragraph:
-                result.append("\n\n")
+                if result[-1] == " ":
+                    result[-1] = "\n\n"
+                # elif self.tokens[i] ==" " :
+                #    result.append("\n\n")
+                else:
+                    result.append("\n\n")
+                    result.append(self.tokens[i])
                 last_paragraph = self.as_paragraph[i]
+            else:
+                result.append(self.tokens[i])
+
         return "".join(result)
 
 
 class NoTokensError(Exception):
     pass
+
+
+def print_alignment(transform, transcript_words, markdown_words):
+    for op in transform:
+        print(f"{op[0]} [{op[1]}:{op[2]}]->[{op[3]}:{op[4]}]:")
+        print(f"   |{'|'.join(transcript_words[op[1]:op[2]])}|")
+        print(f"   |{'|'.join(markdown_words[op[3]:op[4]])}|")
+
+
+def print_parts(prefix, str1, str2):
+    if isinstance(str1, list):
+        str1 = "".join(str1)
+    if isinstance(str2, list):
+        str2 = "".join(str2)
+    print(prefix + str1.replace("\n", "\\n") + "‖" + str2.replace("\n", "\\n"))
 
 
 class Aligner:
@@ -154,6 +179,7 @@ class Aligner:
         self.block_delta = block_delta
         self.context_size = context_size
         self.only_text_context_size = only_text_context_size
+        self.context_block_start = 0
         self.current_block_start = 0
         self.current_block_end = 0
         self.context = ""
@@ -169,13 +195,15 @@ class Aligner:
         """Get next block of text to format."""
         assert self.current_block_start == self.current_block_end
         context = self.context + "\n\n" if self.context else ""
+        if self.current_block_start == len(self.transcript):
+            return context
 
         if (
             len(self.transcript) - self.current_block_start
             < self.block_size + self.block_delta - self.current_context_size
         ):
             self.current_block_end = len(self.transcript)
-            return context + "".join(self.transcript.tokens)
+            return context + "".join(self.transcript.tokens[self.current_block_start :])
         delta_begin = (
             self.current_block_start
             + self.block_size
@@ -203,15 +231,21 @@ class Aligner:
             )
         return context + "".join(
             self.transcript.tokens[self.current_block_start : self.current_block_end]
-        )
+        ).strip("\n ")
 
     def push(self, formatted: MarkdownResponse):
         """Push result of formatting."""
-        if self.current_block_start == len(self.transcript):
+        if self.context_block_start == len(self.transcript):
             return ""
         assert self.current_block_start != self.current_block_end
+        assert self.current_block_start >= self.context_block_start
         transform = lev.opcodes(
-            self.transcript.tokens[self.current_block_start : self.current_block_end],
+            self.transcript.tokens[self.context_block_start : self.current_block_end],
+            formatted.tokens,
+        )
+        print_alignment(
+            transform,
+            self.transcript.tokens[self.context_block_start : self.current_block_end],
             formatted.tokens,
         )
         last_markdown_paragraph = 0
@@ -220,18 +254,18 @@ class Aligner:
         last_markdown_pos = None
         last_is_header = False
         context_started = False
-        result_tokens = []
+        context_markdown_pos = None
+        context_result_pos = None
+        result_tokens: List[str] = []
 
         for op, t_from, t_to, m_from, m_to in transform:
-            if context_started:
-                break
             if op != "delete":
                 for i in range(0, m_to - m_from):
                     if op == "insert":
-                        transcript_pos = t_from + self.current_block_start
+                        transcript_pos = t_from + self.context_block_start
                         new_transcript_segment = None
                     else:
-                        transcript_pos = t_from + i + self.current_block_start
+                        transcript_pos = t_from + i + self.context_block_start
                         new_transcript_segment = self.transcript.as_segment[
                             transcript_pos
                         ]
@@ -244,16 +278,18 @@ class Aligner:
                         new_transcript_segment != last_transcript_segment
                     )
                     is_new_paragraph = last_markdown_paragraph != new_markdown_paragraph
+                    if not context_started:
+                        limit = (
+                            self.context_size
+                            if current_is_header
+                            else self.only_text_context_size
+                        )
 
-                    limit = (
-                        self.context_size
-                        if current_is_header
-                        else self.only_text_context_size
-                    )
-
-                    if is_new_paragraph and (limit > len(formatted) - markdown_pos):
-                        context_started = True
-                        break
+                        if is_new_paragraph and (limit > len(formatted) - markdown_pos):
+                            context_started = True
+                            context_markdown_pos = markdown_pos
+                            context_result_pos = len(result_tokens)
+                            context_transcript_pos = transcript_pos
 
                     if (
                         not last_transcript_segment is None
@@ -276,29 +312,74 @@ class Aligner:
                     last_markdown_paragraph = new_markdown_paragraph
                     last_is_header = current_is_header
                     last_markdown_pos = markdown_pos
-                    if op == "equal" :
+                    if op in ["equal","delete"]:
                         last_transcript_pos = transcript_pos
-                    
+            else:
+                last_transcript_pos = t_to-1 + self.context_block_start
+                new_transcript_segment = self.transcript.as_segment[
+                            last_transcript_pos 
+                        ]
 
         if last_transcript_segment is not None and not last_is_header:
+            # TODO: that would be cut if we have context
             result_tokens.append(f"{{{last_transcript_segment}}}")
             last_transcript_segment = None
-        if context_started and last_markdown_pos is not None:
-            self.context = formatted.get_markdown_str(last_markdown_pos + 1)
-            self.current_context_size = len(formatted) - last_markdown_pos - 1
+
+        if last_transcript_pos is not None:
+            if self.current_block_start == last_transcript_pos + 1:
+                raise NoTokensError("Stuck on the same block")
+            self.current_block_start = last_transcript_pos + 1
+            self.current_block_end = self.current_block_start
         else:
+            raise NoTokensError("No tokens were pushed")
+
+        if (
+            (self.current_block_start != len(self.transcript))
+            and context_started
+            and context_transcript_pos is not None
+            and context_markdown_pos is not None
+        ):
+            self.context = formatted.get_markdown_str(context_markdown_pos).strip(" \n")
+            self.current_context_size = len(formatted) - context_markdown_pos - 1
+            self.context_block_start = context_transcript_pos
+            self.result_tokens.extend(result_tokens[:context_result_pos])
+        else:
+            self.result_tokens.extend(result_tokens)
+            self.context_block_start = self.current_block_start
             self.context = ""
             self.current_context_size = 0
 
-        if last_transcript_pos is not None:
-            self.current_block_start = last_transcript_pos + 1
-            self.current_block_end = self.current_block_start
-            self.result_tokens.extend(result_tokens)
-        else:
-            raise NoTokensError("No tokens were pushed")
+        print_parts("R>", self.result_tokens[-5:], self.context)
+        if not context_markdown_pos is None:
+            print_parts(
+                "M>",
+                formatted.get_markdown_str(context_markdown_pos - 5, context_markdown_pos),
+                self.context,
+            )
+        print_parts(
+            "C>",
+            self.transcript.tokens[
+                self.context_block_start - 5 : self.context_block_start
+            ],
+            self.transcript.tokens[
+                self.context_block_start : self.context_block_start + 5
+            ],
+        )
+        print_parts(
+            "T>",
+            self.transcript.tokens[
+                self.current_block_start - 5 : self.current_block_start
+            ],
+            self.transcript.tokens[
+                self.current_block_start : self.current_block_start + 5
+            ],
+        )
 
         return self.next_block()
 
     def get_result(self):
         """Get result of formatting."""
         return "".join(self.result_tokens)
+    def is_last_block(self):
+        """Check if the last block is reached."""
+        return self.current_block_end == len(self.transcript)
