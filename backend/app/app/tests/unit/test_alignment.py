@@ -217,5 +217,5 @@ def test_alignment():
         if not par.startswith("#"):
             assert par.find("##") < 0, par
             assert par.find("markdown") < 0, par
-            assert not re.match(r"^(\{\d+(\.\d+)?\}).*(\{\d+(\.\d+)?\})$", par) is None, par
+            assert not re.match(r"^(\{~\d+(\.\d+)?\}).*(\{~\d+(\.\d+)?\})$", par) is None, par
         

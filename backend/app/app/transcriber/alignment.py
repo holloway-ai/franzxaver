@@ -3,6 +3,7 @@ import re
 import json
 from typing import List
 import Levenshtein as lev
+from indexedproperty import indexedproperty
 
 re_tokens = re.compile(r"([~\w'-]+|[.,\?!])")
 
@@ -51,6 +52,15 @@ class Transcript:
 
     def __len__(self):
         return len(self.tokens)
+    @indexedproperty
+    def begin(self, segment):
+        return self.segments[segment]["begin"]
+    @indexedproperty
+    def end(self, segment):
+        return self.segments[segment]["end"]
+    def __getitem__(self, key):
+        return self.tokens[key]
+        
 
 
 class MarkdownResponse:
@@ -114,6 +124,8 @@ class MarkdownResponse:
 
     def __len__(self):
         return len(self.tokens)
+    def __getitem__(self, key):
+        return self.tokens[key]
 
     def get_markdown_str(self, start: int = 0, end: int = -1):
         """Get markdown string from tokens."""
@@ -203,7 +215,7 @@ class Aligner:
             < self.block_size + self.block_delta - self.current_context_size
         ):
             self.current_block_end = len(self.transcript)
-            return context + "".join(self.transcript.tokens[self.current_block_start :])
+            return context + "".join(self.transcript[self.current_block_start :])
         delta_begin = (
             self.current_block_start
             + self.block_size
@@ -235,6 +247,11 @@ class Aligner:
 
     def push(self, formatted: MarkdownResponse):
         """Push result of formatting."""
+        def end(segment:int):
+            return f"{{~{self.transcript.end[segment]}}}"
+        def begin(segment:int):
+            return f"{{~{self.transcript.begin[segment]}}}"
+             
         if self.context_block_start == len(self.transcript):
             return ""
         assert self.current_block_start != self.current_block_end
@@ -284,7 +301,7 @@ class Aligner:
                         and (is_segment_change or is_new_paragraph)
                         and not last_is_header
                     ):
-                        result_tokens.append(f"{{{last_transcript_segment}}}")
+                        result_tokens.append(end(last_transcript_segment))
                     if is_new_paragraph:
                         result_tokens.append("\n\n")
                         
@@ -306,7 +323,7 @@ class Aligner:
                         and (is_segment_change or is_new_paragraph)
                         and not current_is_header
                     ):
-                        result_tokens.append(f"{{{new_transcript_segment}}}")
+                        result_tokens.append(begin(new_transcript_segment))
                     result_tokens.append(formatted.tokens[markdown_pos])
                     if op == "insert":
                         last_transcript_segment = None
@@ -314,7 +331,7 @@ class Aligner:
                     last_markdown_paragraph = new_markdown_paragraph
                     last_is_header = current_is_header
                     last_markdown_pos = markdown_pos
-                    if op in ["equal","delete"]:
+                    if op in ["equal","replace"]:
                         last_transcript_pos = transcript_pos
             else:
                 last_transcript_pos = t_to-1 + self.context_block_start
@@ -323,8 +340,7 @@ class Aligner:
                         ]
 
         if last_transcript_segment is not None and not last_is_header:
-            # TODO: that would be cut if we have context
-            result_tokens.append(f"{{{last_transcript_segment}}}")
+            result_tokens.append(end(last_transcript_segment))
             last_transcript_segment = None
 
         if last_transcript_pos is not None:

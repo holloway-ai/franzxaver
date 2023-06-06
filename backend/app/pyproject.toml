@@ -36,6 +36,7 @@ opencv-python = "^4.7.0.72"
 scenedetect = "^0.6.1"
 boto3 = "^1.26.131"
 ffmpeg-python = "^0.2.0"
+indexedproperty = "^0.1.4"
 
 [tool.poetry.group.dev.dependencies]
 pytest-cov = "^4.0.0"
