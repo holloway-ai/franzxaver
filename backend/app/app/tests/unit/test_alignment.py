@@ -49,6 +49,16 @@ def test_markdown_object():
     assert markdown_from_str.tokens == markdown.tokens
     assert markdown_from_str.as_paragraph == markdown.as_paragraph
     assert markdown_from_str.is_header == markdown.is_header
+    
+def test_markdown_list():
+    """Test if markdown object is created correctly."""
+    from app.transcriber.alignment import MarkdownResponse  # pylint: disable=C0415
+
+    markdown_str = "1. First-item pos\n  - level Second-item\n3. Third item"
+    markdown = MarkdownResponse(markdown_str)
+    assert markdown.tokens[0] == "1. ", markdown.tokens[0]
+    assert markdown.tokens[4] == "\n  - ", markdown.tokens[4]
+    
 
 
 @pytest.mark.parametrize(
@@ -85,7 +95,7 @@ def test_markdown_object_skip_prompt(test_input, remove_header):
 synthetic_transcript_dict = {
     "segments": [
         {
-            "text": "Replace with header. One, two! three, four. Five, six. Seven, eight. Nine, ten.",
+            "text": "Replace with header. One, two: three, four. Five, six. Seven, eight. Nine, ten.",
             "begin": 0.0,
             "end": 10.0,
         },
@@ -100,7 +110,7 @@ synthetic_transcript_dict = {
             "end": 30.0,
         },
         {
-            "text": "Thirty-one, thirty-two, thirty-three, thirty-four, thirty-five! thirty-six! Thirty-seven, thirty-eight, thirty-nine, forty.",
+            "text": "Thirty-one: thirty-two, thirty-three, thirty-four, thirty-five! thirty-six! Thirty-seven, thirty-eight, thirty-nine, forty.",
             "begin": 31.0,
             "end": 40.0,
         },
@@ -111,21 +121,7 @@ synthetic_transcript_dict = {
         },
     ]
 }
-numbers = [
-    "Zero",
-    "One",
-    "two",
-    "three",
-    "four",
-    "five",
-    "six",
-    "seven",
-    "eight",
-    "nine",
-    "ten",
-]
 replacements = [
-
     ("thirteen", 13),
     ("nineteen", 19),
     ("twenty-three", 23),
@@ -133,39 +129,53 @@ replacements = [
     ("thirty-three", 33),
     ("thirty-nine", 39),
     ("forty-three", 43),
-    ("forty-nine", 49)
+    ("forty-nine", 49),
 ]
+
+
 def update_synthetic_block(current_block, step):
     current_block = current_block.replace(
-            "Replace with header. ", "\n\n## Replace with header\n\n"
-        )
+        "Replace with header. ", "\n\n## Replace with header\n\n"
+    )
     current_block = current_block.replace("!", "!\n\n## Next header\n\n")
     current_block = current_block.replace(".", ".\n\n")
     current_block = current_block.strip("\n ")
+    bullets = current_block.find(":")+1
+    if bullets > 0:
+        end = re.search(r"[\.!?]", current_block[bullets:])
+        end = end.end() if end else len(current_block)
+        end += bullets
+        current_block = (
+            current_block[:bullets]
+            + "\n\n-"
+            + current_block[bullets:end].replace(",", "\n-")
+            + "\n\n"
+            + current_block[end:]
+        )
     if step // 2 != 0:
         current_block = "Sure, here's the text in markdown format:\n\n" + current_block
-        
+
     for text, replacement in replacements:
         current_block = current_block.replace(text, str(replacement))
-    current_block = re.sub(r"\s*\n+\s?", "\n\n", current_block)
-    #current_block = current_block.replace("\n"*4, "\n"*2)
+    current_block = re.sub(r"\s*\n{2,}\s?", "\n\n", current_block)
+    # current_block = current_block.replace("\n"*4, "\n"*2)
     return current_block
 
+
 def test_alignment():
-    from app.transcriber.alignment import ( # pylint: disable=C0415
+    from app.transcriber.alignment import (  # pylint: disable=C0415
         Transcript,
         MarkdownResponse,
         Aligner,
-    )  
-    
-    block_size=40
-    block_delta=13
-    context_size=20
-    only_text_context_size=15
+    )
+
+    block_size = 40
+    block_delta = 13
+    context_size = 20
+    only_text_context_size = 15
 
     transcript = Transcript(synthetic_transcript_dict)
 
-    
     aligner = Aligner(
         transcript,
         block_size=block_size,
@@ -179,26 +189,26 @@ def test_alignment():
     context_elements = current_block[-5:].strip()
     step = 0
     while current_block:
-        print("="*20)
+        print("=" * 20)
         print(current_block)
         initial_block = MarkdownResponse(current_block)
-        assert len(initial_block) <= block_size+block_delta
-        assert len(initial_block) >= block_size-block_delta or aligner.is_last_block()
+        assert len(initial_block) <= block_size + block_delta
+        assert len(initial_block) >= block_size - block_delta or aligner.is_last_block()
         assert current_block.find(context_elements) >= 0
-        
+
         current_block = update_synthetic_block(current_block, step)
-        print(">"+"-"*19)
-        print(current_block)    
+        print(">" + "-" * 19)
+        print(current_block)
         formatted = MarkdownResponse(current_block)
         context_elements = formatted.get_markdown_str(-3).strip()
-        
+
         current_block = aligner.push(formatted)
         step += 1
     result = aligner.get_result()
     print(result)
     assert result.startswith("## Replace with header")
     assert result.find("fifty.") > 0
-    
+
     word_count = 0
     missing_words = 0
     continue_missing = 0
@@ -210,12 +220,13 @@ def test_alignment():
             else:
                 continue_missing = 0
             assert continue_missing < 3
-            word_count +=1
+            word_count += 1
     assert missing_words / word_count < 0.21
-    
+
     for par in result.split("\n\n"):
         if not par.startswith("#"):
             assert par.find("##") < 0, par
             assert par.find("markdown") < 0, par
-            assert not re.match(r"^(\{~\d+(\.\d+)?\}).*(\{~\d+(\.\d+)?\})$", par) is None, par
-        
+            assert (
+                not re.match(r"^(\s*(?:[-\*\+]|\d+\.) )?(\{~\d+(\.\d+)?\}).*(\{~\d+(\.\d+)?\})$", par,re.S) is None
+            ), par
