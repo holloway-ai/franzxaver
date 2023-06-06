@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 import Levenshtein
 from app.core.config import settings
+from app.transcriber.alignment import Transcript, MarkdownResponse, Aligner
 
 logger = logging.getLogger(__name__)
 
@@ -364,7 +365,7 @@ def insert_slides(text, slides):
 
 
 def format_transcription(
-    transcript,
+    transcript_dict,
     progress_callback=None,
     step=0,
     total_steps=100,
@@ -385,23 +386,30 @@ def format_transcription(
         with (dump_path / file_name).open("w") as f:
             f.write(text)
 
-    seg_index = 0
-    stuck_count = 0
-    context = None
-    results = []
-    progress_seg = (total_steps - step) / len(transcript["segments"])
-    dump_text(
-        "\n".join([seg["text"] for seg in transcript["segments"]]), f"transcript.txt"
+    dump_json(transcript_dict, "transcript.json")
+
+    transcript = Transcript(transcript_dict)
+
+    aligner = Aligner(
+        transcript=transcript,
+        block_size=1200,
+        block_delta=400,
+        context_size=400,
+        only_text_context_size=200,
     )
 
-    while seg_index < len(transcript["segments"]):
-        logger.info(transcript["segments"][seg_index]["text"])
-        block_limit = {0: 200, 1: 100}.get(stuck_count, 50)
-        text, next_seg_index = next_block(transcript, seg_index, block_limit)
-        logger.info(transcript["segments"][next_seg_index - 1]["text"])
-        prompt = get_prompt(text, context)
-        dump_json(prompt, f"{seg_index}:{stuck_count}_prompt.json")
-        temperature = {3: 0.07}.get(stuck_count, 0.0)
+    stuck_count = 0
+
+    progress_seg = (total_steps - step) / len(transcript)
+
+    current_block = aligner.first_block()
+    while current_block:
+        # block_limit = {0: 200, 1: 100}.get(stuck_count, 50)
+        state_prefix = f"{aligner.context_block_start}_{aligner.current_block_start}_{aligner.current_block_end}"
+        prompt = get_prompt(current_block)
+        dump_json(prompt, f"{state_prefix}_prompt.json")
+        # temperature = {3: 0.07}.get(stuck_count, 0.0)
+        temperature = 0.0
         formatted_result = process(
             system_prompt=system_prompt,
             user_prompt=prompt,
@@ -409,44 +417,24 @@ def format_transcription(
             temperature=temperature,
         )
 
-        dump_text(formatted_result, f"{seg_index}:{stuck_count}_result.md")
-        formatted_result = clean_header(
-            formatted_result, context, transcript["segments"][seg_index]["text"]
-        )
+        dump_text(formatted_result, f"{state_prefix}_result.md")
+        formatted = MarkdownResponse(formatted_result)
+        current_block = aligner.push(formatted)
 
-        res, processed_seg_index = add_timestamps(
-            formatted_result, transcript, seg_index
-        )
-        if processed_seg_index > seg_index:
-            results.append(res)
-            stuck_count = 0
-            if processed_seg_index < next_seg_index:
-                # we didn't process all output from model
-                clean_res = (
-                    re.sub(r"{~\d+.\d+}", "", res)
-                    .replace("  ", " ")
-                    .replace("\n ", "\n")
-                    .replace(" \n", "\n")
-                )
-                context = get_last_section(clean_res)
-            else:
-                context = get_last_section(formatted_result)
-            seg_index = processed_seg_index
-            if progress_callback is not None:
-                progress_callback(
-                    step=step + int(progress_seg * seg_index),
-                    steps=total_steps,
-                    description="formatting: "
-                    + context.split("\n")[0].replace("##", "").strip(),
-                )
-        else:
-            stuck_count += 1
-            logger.info(f"stuck at same segment {seg_index} attempt {stuck_count}")
-            if stuck_count > 3:
-                logger.info(f"stuck at same segment {seg_index} giving up")
-                break
+        if progress_callback is not None:
+            end = current_block.find("\n")
+            end = end if end > 0 else len(current_block)
+            end = min(end, 20)
+            progress_text = (
+                current_block[:end].replace("\n", " ").replace("#", "").strip() + "..."
+            )
+            progress_callback(
+                step=step + int(progress_seg * aligner.context_block_start),
+                steps=total_steps,
+                description="formatting: " + progress_text,
+            )
 
-    result = "\n\n".join(results)
+    result = aligner.get_result()
     result = insert_slides(result, slides)
     dump_text(result, f"result.md")
 
@@ -461,6 +449,6 @@ if __name__ == "__main__":
         "session_data/{date:%Y-%m-%d_%H:%M:%S}".format(date=datetime.datetime.now())
     )
     res = format_transcription(
-        transcript=get_test_transcript("transcript_1.json"), dump_path=dump_path
+        transcript_dict=get_test_transcript("transcript_1.json"), dump_path=dump_path
     )
     print(res)

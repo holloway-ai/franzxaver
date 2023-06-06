@@ -58,7 +58,7 @@ class Transcript:
 
     @indexedproperty
     def begin(self, segment):
-        return self.segments[segment]["begin"]
+        return self.segments[segment]["start"]
 
     @indexedproperty
     def end(self, segment):

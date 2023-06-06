@@ -96,27 +96,27 @@ synthetic_transcript_dict = {
     "segments": [
         {
             "text": "Replace with header. One, two: three, four. Five, six. Seven, eight. Nine, ten.",
-            "begin": 0.0,
+            "start": 0.0,
             "end": 10.0,
         },
         {
             "text": "Eleven, twelve, thirteen, fourteen, fifteen! sixteen, seventeen! Eighteen, nineteen, twenty.",
-            "begin": 11.0,
+            "start": 11.0,
             "end": 20.0,
         },
         {
             "text": "Twenty-one, twenty-two, twenty-three, twenty-four, twenty-five. Twenty-six, twenty-seven. Twenty-eight, twenty-nine, thirty,",
-            "begin": 21.0,
+            "start": 21.0,
             "end": 30.0,
         },
         {
             "text": "Thirty-one: thirty-two, thirty-three, thirty-four, thirty-five! thirty-six! Thirty-seven, thirty-eight, thirty-nine, forty.",
-            "begin": 31.0,
+            "start": 31.0,
             "end": 40.0,
         },
         {
             "text": "Forty-one, forty-two, forty-three, forty-four, forty-five. Replace with header. Forty-six, forty-seven, forty-eight, forty-nine, fifty.",
-            "begin": 41.0,
+            "start": 41.0,
             "end": 50.0,
         },
     ]
