@@ -406,6 +406,7 @@ def format_transcription(
     while current_block:
         # block_limit = {0: 200, 1: 100}.get(stuck_count, 50)
         state_prefix = f"{aligner.context_block_start}_{aligner.current_block_start}_{aligner.current_block_end}"
+        dump_text(current_block, f"{state_prefix}_request.md")
         prompt = get_prompt(current_block)
         dump_json(prompt, f"{state_prefix}_prompt.json")
         # temperature = {3: 0.07}.get(stuck_count, 0.0)

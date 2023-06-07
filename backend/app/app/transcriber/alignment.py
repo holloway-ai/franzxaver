@@ -45,7 +45,7 @@ class Transcript:
         self.segments = transcript["segments"]
         for sed_n, seg in enumerate(self.segments):
             self.as_first_token[sed_n] = len(self.tokens)
-            for token in Transcript.re_tokens.split(seg["text"]):
+            for token in Transcript.re_tokens.split(seg["text"].strip()):
                 if token:
                     self.tokens.append(token)
                     self.as_segment.append(sed_n)
@@ -74,7 +74,7 @@ class MarkdownResponse:
     as_paragraph: returns paragraph associated with token number
     is_header: returns True if token is a header
     """
-
+    marker_paragraph = "\n"
     re_tokens = re.compile(f"({'|'.join([r_bullet, r_word, r_punctuation])})")
     re_bullet = re.compile(r_bullet)
     def __init__(self, markdown, skip_header=True):
@@ -98,7 +98,7 @@ class MarkdownResponse:
         """Remove header from markdown string."""
         if markdown.startswith("#"):
             return markdown
-        first_paragraph_end = markdown.find("\n\n")
+        first_paragraph_end = markdown.find(self.marker_paragraph)
         if first_paragraph_end > 0:
             line = markdown[:first_paragraph_end].lower()
         else:
@@ -120,7 +120,7 @@ class MarkdownResponse:
         self.paragraphs = []
         if skip_header:
             markdown = self.remove_header(markdown)
-        for par_n, par in enumerate(markdown.split("\n\n")):
+        for par_n, par in enumerate(markdown.split(self.marker_paragraph)):
             is_header = par.startswith("#")
             self.paragraphs.append(par)
             for token in self.re_tokens.split(par):
@@ -146,11 +146,11 @@ class MarkdownResponse:
         for i in range(start, end + 1):
             if self.as_paragraph[i] != last_paragraph:
                 if result[-1] == " ":
-                    result[-1] = "\n\n"
+                    result[-1] = self.marker_paragraph
                 # elif self.tokens[i] ==" " :
                 #    result.append("\n\n")
                 else:
-                    result.append("\n\n")
+                    result.append(self.marker_paragraph)
                     result.append(self.tokens[i])
                 last_paragraph = self.as_paragraph[i]
             else:
@@ -257,13 +257,31 @@ class Aligner:
         ).strip("\n ")
 
     def push(self, formatted: MarkdownResponse):
-        """Push result of formatting."""
+        """Push result of formatting.
+        1. Align current block and formatted text
+        2. Adjust current block to formatted text 
+            - formatted text could be shorter than current block
+            - formatted text could be longer than current block
+        3. Identify context for next block and select working block
+            - we do not need context for last block 
+            - better to start context with header
+            - context size should be close to context_size
+            - if we can not find context with header, we can start with paragraph
+            - if we can not find context with paragraph, we can start with sentence
+            - if we can not find context with sentence, we can start with word
+        4. Add timestamps to working block
+            - do not brake bullets in markdown (add timestamps after bullet markers)
+            - do not brake markdown headers (no timestamps in headers)
+            - do not brake markdown links (add timestamps after links)
+            - do not brake markdown highlights (do not put timestamps between highlight marker and word)
+        
+        """
 
         def end(segment: int):
-            return f"{{~{self.transcript.end[segment]}}}"
+            return f"{{~{self.transcript.end[segment]:.2f}}}"
 
         def begin(segment: int):
-            return f"{{~{self.transcript.begin[segment]}}}"
+            return f"{{~{self.transcript.begin[segment]:.2f}}}"
 
         if self.context_block_start == len(self.transcript):
             return ""

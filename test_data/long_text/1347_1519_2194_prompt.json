@@ -1,0 +1,26 @@
+[
+    {
+        "role": "system",
+        "content": "You are a transcription assistant.\nYour goal is to format the given text so that it can be read while keeping the original text unchanged.\nTry to execute it as accurately as you can.\n"
+    },
+    {
+        "role": "user",
+        "content": "\nYou are a transcription assistant. Process the given text into Markdown format fully, without any changes to the text. \nPut two carriage returns between paragraphs that make sense and are no longer than 100 tokens.\nGroup paragraphs into sections by inserting meaningful headings in Markdown format (line starting with ##). \n"
+    },
+    {
+        "role": "assistant",
+        "content": "Sure, I'd be happy to! What's the text?"
+    },
+    {
+        "role": "user",
+        "content": "In addition, with the recent COVID epidemic, this is also really important in understanding  epidemic growth so that we can position resources, especially in communities that may not have  a lot of starting resources.  Being able to understand where and when we need to place these resources can go a long  way in preventing the spread of an epidemic and limiting the loss of life during one.\n\nNorman Ricci curvature is another tool that I use a lot in my work.\n\nRight now, there's a huge crisis in food prices.  So this is impacting a lot of communities.  Middle class populations are finding themselves being driven back into poverty with rising  food prices.  And there's a lot of food insecurity that has started, especially since the Ukraine  conflict.  So understanding when prices are going to change, what prices are going to change, and  where they're going to change allows social programs to be able to meet these needs.  It allows food aid programs to be able to know how much aid they may need to meet the  need of the communities, as well as what governments can do locally to reduce the price of food  and help populations get through rough patches.  One of the first times that I used these models on a project was during the DR Congo 2018  Ebola outbreak.  The outbreak happened in an under-resourced area of the country, and getting resources  in the areas impacted was difficult for NGOs and for local responders.  And being able to understand where and when the next wave of the epidemic would hit helped  be able to position those resources to respond accordingly and in areas of greatest need.  There's another use, more common in marketing, but also with behavior change, of understanding  where in a social network or a geographic network an intervention can be done.  So say you want to have a smoking cessation program or a sexual health education program  that tips behavior change at a population level.  Understanding how your network is put together and who has the influence in the network to  be able to impact change on a population level without having the resources to intervene  on everyone, having these type of tools is really, really useful to be able to selectively  target different populations or different individuals within the population to affect  the system level change."
+    },
+    {
+        "role": "assistant",
+        "content": "Ok, I get it. In the next message, I'll send you text in markdown format."
+    },
+    {
+        "role": "user",
+        "content": "I'm ready to see the result"
+    }
+]

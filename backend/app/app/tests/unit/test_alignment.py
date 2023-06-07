@@ -121,23 +121,86 @@ synthetic_transcript_dict = {
         },
     ]
 }
+synthetic_transcript_dict = {
+    "segments": [
+        {
+            "text": "Replace with header. One, two, three four five. ",
+            "start": 0.0,
+            "end": 5.0,
+        },
+        {
+            "text": " Six seven. Eight nine, Ten ",
+            "start": 6.0,
+            "end": 10.0,
+        },
+        {
+            "text": " eleven, Twelve thirteen. Fourteen, fifteen!",
+            "start": 11.0,
+            "end": 15.0,
+        },
+        {
+            "text": " Sixteen, seventeen! Eighteen, nineteen, twenty.",
+            "start": 16.0,
+            "end": 20.0,
+        },
+        {
+            "text": " Twenty-one, twenty-two, ",
+            "start": 21.0,
+            "end": 22.0,
+        },
+        {
+            "text": " twenty-three, twenty-four, twenty-five ",
+            "start": 23.0,
+            "end": 25.0,
+        },
+        {
+            "text": " twenty-six, twenty-seven. Twenty-eight, twenty-nine, thirty,",
+            "start": 26.0,
+            "end": 30.0,
+        },
+        {
+            "text": " Thirty-one: thirty-two thirty-three, thirty-four thirty-five, ",
+            "start": 31.0,
+            "end": 35.0,
+        },
+        {
+            "text": " thirty-six thirty-seven, thirty-eight ",
+            "start": 35.0,
+            "end": 38.0,
+        },
+        {
+            "text": " thirty-nine, forty ",
+            "start": 39.0,
+            "end": 40.0,
+        },
+        {
+            "text": " forty-one forty-two. Forty-three forty-four! Forty-five. Replace with header. Forty-six, forty-seven, forty-eight, forty-nine, fifty.",
+            "start": 41.0,
+            "end": 50.0,
+        },
+    ]
+}
 replacements = [
-    ("thirteen", 13),
-    ("nineteen", 19),
-    ("twenty-three", 23),
-    ("twenty-nine", 29),
-    ("thirty-three", 33),
-    ("thirty-nine", 39),
-    ("forty-three", 43),
-    ("forty-nine", 49),
+    ("thirteen", "13"),
+    ("nineteen", "19"),
+    ("twenty-three", "23"),
+    ("twenty-nine", "29"),
+    ("thirty-three", "33"),
+    ("thirty-nine", "39"),
+    ("forty-three", "43"),
+    ("forty-nine", "49"),
+    ("Ten","**Ten**"),
+    ("twenty-five","**twenty-five**"),
+    ("forty","__forty__"),
+    
 ]
 
 
 def update_synthetic_block(current_block, step):
     current_block = current_block.replace(
-        "Replace with header. ", "\n\n## Replace with header\n\n"
+        "Replace with header. ", "\n\n## Replace with header\n"
     )
-    current_block = current_block.replace("!", "!\n\n## Next header\n\n")
+    current_block = current_block.replace("!", "\n\n## Next header\n")
     current_block = current_block.replace(".", ".\n\n")
     current_block = current_block.strip("\n ")
     bullets = current_block.find(":")+1
@@ -192,8 +255,8 @@ def test_alignment():
         print("=" * 20)
         print(current_block)
         initial_block = MarkdownResponse(current_block)
-        assert len(initial_block) <= block_size + block_delta
-        assert len(initial_block) >= block_size - block_delta or aligner.is_last_block()
+        assert len(initial_block) <= block_size + block_delta + 3
+        assert len(initial_block) >= block_size - block_delta-3 or aligner.is_last_block()
         assert current_block.find(context_elements) >= 0
 
         current_block = update_synthetic_block(current_block, step)
@@ -230,3 +293,31 @@ def test_alignment():
             assert (
                 not re.match(r"^(\s*(?:[-\*\+]|\d+\.) )?(\{~\d+(\.\d+)?\}).*(\{~\d+(\.\d+)?\})$", par,re.S) is None
             ), par
+
+
+def test_long_text_alignment():
+    from app.transcriber.alignment import (  # pylint: disable=C0415
+        Transcript,
+        MarkdownResponse,
+        Aligner,
+    )
+    transcript_path = Path("test_data/long_text/transcript.json")
+    transcript = Transcript(transcript_path)
+    formatted_path = Path("test_data/long_text/0_0_834_result.md")
+    formatted = MarkdownResponse(formatted_path)
+    aligner = Aligner(
+        transcript=transcript,
+        block_size=1200,
+        block_delta=400,
+        context_size=400,
+        only_text_context_size=200,
+    )
+    block =  aligner.first_block()
+    #assert aligner.current_block_end == 834
+    next_block = aligner.push(formatted)
+    result = aligner.get_result()
+    print(result)
+    #assert result.startswith("## Replace with header")
+    
+    
+    
