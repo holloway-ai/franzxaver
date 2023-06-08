@@ -181,6 +181,7 @@ synthetic_transcript_dict = {
     ]
 }
 replacements = [
+    ("Replace with header. ", "\n\n## Replace with header\n"),
     ("thirteen", "13"),
     ("nineteen", "19"),
     ("twenty-three", "23"),
@@ -189,19 +190,18 @@ replacements = [
     ("thirty-nine", "39"),
     ("forty-three", "43"),
     ("forty-nine", "49"),
-    ("Ten","**Ten**"),
-    ("twenty-five","**twenty-five**"),
-    ("forty","__forty__"),
+    (" Ten "," **Ten** "),
+    (" twenty-five "," **twenty-five** "),
+    (" forty "," __forty__ "),
+    ("! ", "?\n\n## Next header\n"),
+    (". ", ".\n\n"),
+
     
 ]
 
 
 def update_synthetic_block(current_block, step):
-    current_block = current_block.replace(
-        "Replace with header. ", "\n\n## Replace with header\n"
-    )
-    current_block = current_block.replace("!", "\n\n## Next header\n")
-    current_block = current_block.replace(".", ".\n\n")
+
     current_block = current_block.strip("\n ")
     bullets = current_block.find(":")+1
     if bullets > 0:
@@ -221,6 +221,7 @@ def update_synthetic_block(current_block, step):
     for text, replacement in replacements:
         current_block = current_block.replace(text, str(replacement))
     current_block = re.sub(r"\s*\n{2,}\s?", "\n\n", current_block)
+    current_block = re.sub(r"\s*\n\s?", "\n", current_block)
     # current_block = current_block.replace("\n"*4, "\n"*2)
     return current_block
 
@@ -234,8 +235,8 @@ def test_alignment():
 
     block_size = 40
     block_delta = 13
-    context_size = 20
-    only_text_context_size = 15
+    context_size = 13
+    context_size_delta = 7
 
     transcript = Transcript(synthetic_transcript_dict)
 
@@ -244,7 +245,7 @@ def test_alignment():
         block_size=block_size,
         block_delta=block_delta,
         context_size=context_size,
-        only_text_context_size=only_text_context_size,
+        context_size_delta= context_size_delta,
     )
 
     current_block = aligner.first_block()
@@ -276,7 +277,7 @@ def test_alignment():
     missing_words = 0
     continue_missing = 0
     for segment in synthetic_transcript_dict["segments"]:
-        for token in re.split(r"[^\w-]+", segment["text"]):
+        for token in re.split(r"[\w'-]+", segment["text"]):
             if result.find(token) < 0:
                 missing_words += 1
                 continue_missing += 1
@@ -286,14 +287,26 @@ def test_alignment():
             word_count += 1
     assert missing_words / word_count < 0.21
 
-    for par in result.split("\n\n"):
+    for par in result.split("\n"):
+        if par == "":
+            continue
         if not par.startswith("#"):
             assert par.find("##") < 0, par
             assert par.find("markdown") < 0, par
             assert (
-                not re.match(r"^(\s*(?:[-\*\+]|\d+\.) )?(\{~\d+(\.\d+)?\}).*(\{~\d+(\.\d+)?\})$", par,re.S) is None
+                not re.match(r"^\s*((?:[-\*\+]|\d+\.) )?(\{~\d+(\.\d+)?\}).*(\{~\d+(\.\d+)?\})[\:\.\!\?]?$", par,re.S) is None
             ), par
+    broken_highlights = re.search(r"\*{2}(?:[\w'-]+\{~\d+(?:\.\d+)?|\{~\d+(?:\.\d+)?)[\w'-]+\}\*{2}", result)
+    assert broken_highlights is None, broken_highlights.group(0)
+#TODO: fix this
+#{~23.00} twenty-four, **twenty-five{~25.00}** {~23.00}{~25.00}{~26.00}twenty-six, twenty-seven.{~30.00}
+#{~41.00}Forty-three forty-four{~50.00}?
+#~11.00}Fourteen, fifteen{~15.00}?
 
+## Next header
+
+#{~16.00}Sixteen, seventeen{~20.00}?
+# Next header
 
 def test_long_text_alignment():
     from app.transcriber.alignment import (  # pylint: disable=C0415
@@ -310,7 +323,7 @@ def test_long_text_alignment():
         block_size=1200,
         block_delta=400,
         context_size=400,
-        only_text_context_size=200,
+        context_size_delta=200,
     )
     block =  aligner.first_block()
     #assert aligner.current_block_end == 834

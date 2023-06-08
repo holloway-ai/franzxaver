@@ -1,4 +1,5 @@
 from pathlib import Path
+import heapq
 import re
 import json
 from typing import List
@@ -6,8 +7,8 @@ import Levenshtein as lev
 from indexedproperty import indexedproperty
 
 r_bullet = r"\s*(?:[-\*\+]|\d+\.) "
-r_word = r"[\w'-]+"
-r_punctuation = r"[.,\?!:;]"
+r_word = r"[\w'-\*\~_]+"
+r_punctuation = r"[\w\'\-\*\~\_]"
 
 
 class Transcript:
@@ -17,7 +18,9 @@ class Transcript:
     as_segment: returns segments associated with token number
     as_first_token: returns token index associated with segment number
     """
+
     re_tokens = re.compile(f"({'|'.join([r_word, r_punctuation])})")
+
     def __init__(self, transcript):
         self.tokens = []
         self.as_segment = []
@@ -74,9 +77,11 @@ class MarkdownResponse:
     as_paragraph: returns paragraph associated with token number
     is_header: returns True if token is a header
     """
+
     marker_paragraph = "\n"
     re_tokens = re.compile(f"({'|'.join([r_bullet, r_word, r_punctuation])})")
     re_bullet = re.compile(r_bullet)
+
     def __init__(self, markdown, skip_header=True):
         self.tokens = []
         self.as_paragraph = []
@@ -122,7 +127,8 @@ class MarkdownResponse:
             markdown = self.remove_header(markdown)
         for par_n, par in enumerate(markdown.split(self.marker_paragraph)):
             is_header = par.startswith("#")
-            self.paragraphs.append(par)
+            self.paragraphs.append(len(self.tokens))
+            assert par_n == len(self.paragraphs) - 1
             for token in self.re_tokens.split(par):
                 if token:
                     self.tokens.append(token)
@@ -137,6 +143,8 @@ class MarkdownResponse:
 
     def get_markdown_str(self, start: int = 0, end: int = -1):
         """Get markdown string from tokens."""
+        if start >= len(self):
+            return ""
         result: List[str] = []
         if start < 0:
             start = len(self) + start
@@ -157,6 +165,38 @@ class MarkdownResponse:
                 result.append(self.tokens[i])
 
         return "".join(result)
+
+    def find_nearest_cut(self, position: int, delta: int = 0):
+        """Find nearest cut point to position."""
+        ideal_cut = position  # nearest word by default
+        candidates = []
+        for pos in self.paragraphs:
+            diff = abs(position - pos)
+            if diff < delta:
+                heapq.heappush(candidates, (diff, pos))
+        for diff, paragraph_start in candidates:  # find nearest header
+            if self.is_header[paragraph_start]:
+                ideal_cut = paragraph_start
+                break
+        else:
+            if candidates:  # find nearest paragraph
+                ideal_cut = candidates[0][1]
+            else:
+                for i in range(delta):  # find nearest sentence
+                    sentence_start = None
+                    for pos in [position + i, position - i]:
+                        if 0 <= pos < len(self) and self[pos] in [".", "!", "?"]:
+                            sentence_start = pos + 1
+                            break
+                    if sentence_start is not None:
+                        ideal_cut = sentence_start
+                        break
+        return ideal_cut
+
+    @indexedproperty
+    def is_bullet_marker(self, position: int):
+        """Returns True if token at position is bullet maker."""
+        return self.re_bullet.match(self.tokens[position]) is not None
 
 
 class NoTokensError(Exception):
@@ -194,13 +234,14 @@ class Aligner:
         block_size: int = 2000 * 2,
         block_delta: int = 200,
         context_size: int = 600,
-        only_text_context_size: int = 400,
+        context_size_delta: int = 200,
     ) -> None:
+        assert block_size - block_delta > context_size + context_size_delta
         self.transcript = transcript
         self.block_size = block_size
         self.block_delta = block_delta
         self.context_size = context_size
-        self.only_text_context_size = only_text_context_size
+        self.context_size_delta = context_size_delta
         self.context_block_start = 0
         self.current_block_start = 0
         self.current_block_end = 0
@@ -256,14 +297,55 @@ class Aligner:
             self.transcript.tokens[self.current_block_start : self.current_block_end]
         ).strip("\n ")
 
+    def _align(self, formatted: MarkdownResponse):
+        """Align current block and formatted text."""
+        self.formatted = formatted
+        self.transform = lev.opcodes(
+            self.transcript.tokens[self.context_block_start : self.current_block_end],
+            self.formatted.tokens,
+        )
+        self.log_alignment()
+
+    def _adjust_current_block(self):
+        """Adjust current block to formatted text
+        - formatted text could be shorter than current block
+        - formatted text could be longer than current block"
+        """
+        i = len(self.transform) - 1
+
+        operation = self.transform[i][0]
+        length = self.transform[i][2] - self.transform[i][1]
+        if operation in ["equal", "replace"] and length < 3:
+            i -= 1
+            operation = self.transform[i][0]
+            length = self.transform[i][2] - self.transform[i][1]
+        if operation in ["delete", "insert"] and length > 1:
+            i -= 1
+            if i < 0:
+                raise NoTokensError("No tokens to format")
+            if operation == "insert":
+                markdown_cutoff = self.transform[i][4]
+                self._align(
+                    MarkdownResponse(
+                        self.formatted.get_markdown_str(0, markdown_cutoff)
+                    )
+                )
+            else:
+                self.current_block_end = self.transform[i][2]
+                self._align(self.formatted)
+
+    @property
+    def _transform_transcript_end(self):
+        return self.transform[-1][2]+ self.context_block_start
+
     def push(self, formatted: MarkdownResponse):
         """Push result of formatting.
         1. Align current block and formatted text
-        2. Adjust current block to formatted text 
+        2. Adjust current block to formatted text
             - formatted text could be shorter than current block
             - formatted text could be longer than current block
         3. Identify context for next block and select working block
-            - we do not need context for last block 
+            - we do not need context for last block
             - better to start context with header
             - context size should be close to context_size
             - if we can not find context with header, we can start with paragraph
@@ -274,7 +356,7 @@ class Aligner:
             - do not brake markdown headers (no timestamps in headers)
             - do not brake markdown links (add timestamps after links)
             - do not brake markdown highlights (do not put timestamps between highlight marker and word)
-        
+
         """
 
         def end(segment: int):
@@ -285,24 +367,29 @@ class Aligner:
 
         if self.context_block_start == len(self.transcript):
             return ""
-        assert self.current_block_start != self.current_block_end
+        assert self.current_block_start < self.current_block_end
         assert self.current_block_start >= self.context_block_start
-        transform = lev.opcodes(
-            self.transcript.tokens[self.context_block_start : self.current_block_end],
-            formatted.tokens,
+
+        self._align(formatted)
+        self._adjust_current_block()
+        markdown_context_cut = (
+            self._transform_transcript_end
+            if self._transform_transcript_end >= len(self.transcript)
+            else self.formatted.find_nearest_cut(
+                len(self.formatted) - self.context_size, self.context_size_delta
+            )
         )
-        self.log_alignment(transform, formatted)
+
         last_markdown_paragraph = 0
         last_transcript_segment = None
         last_transcript_pos = None
-        last_markdown_pos = None
         last_is_header = False
-        context_started = False
-        context_markdown_pos = None
-        context_result_pos = None
+        context_transcript_pos = None
         result_tokens: List[str] = []
 
-        for op, t_from, t_to, m_from, m_to in transform:
+        for op, t_from, t_to, m_from, m_to in self.transform:
+            if context_transcript_pos is not None:
+                break
             if op != "delete":
                 for i in range(0, m_to - m_from):
                     if op == "insert":
@@ -315,6 +402,9 @@ class Aligner:
                         ]
 
                     markdown_pos = i + m_from
+                    if markdown_pos >= markdown_context_cut:
+                        context_transcript_pos = transcript_pos
+                        break
                     new_markdown_paragraph = formatted.as_paragraph[markdown_pos]
                     current_is_header = formatted.is_header[markdown_pos]
 
@@ -322,7 +412,7 @@ class Aligner:
                         new_transcript_segment != last_transcript_segment
                     )
                     is_new_paragraph = last_markdown_paragraph != new_markdown_paragraph
-                    is_bullet = MarkdownResponse.re_bullet.match(formatted[markdown_pos]) is not None
+                    is_bullet = self.formatted.is_bullet_marker[markdown_pos]
 
                     if (
                         not last_transcript_segment is None
@@ -337,28 +427,16 @@ class Aligner:
                     if is_new_paragraph:
                         result_tokens.append("\n\n")
 
-                    if not context_started:
-                        limit = (
-                            self.context_size
-                            if current_is_header
-                            else self.only_text_context_size
-                        )
-
-                        if is_new_paragraph and (limit > len(formatted) - markdown_pos):
-                            context_started = True
-                            context_markdown_pos = markdown_pos
-                            context_result_pos = len(result_tokens)
-                            context_transcript_pos = transcript_pos
-
                     if (
                         not new_transcript_segment is None
                         and (is_segment_change or is_new_paragraph or is_bullet)
                         and not current_is_header
                     ):
-                        tokens = [formatted[markdown_pos], begin(new_transcript_segment)]
-                        result_tokens.extend(
-                            tokens[:: 1 if is_bullet else -1]
-                        )                       
+                        tokens = [
+                            formatted[markdown_pos],
+                            begin(new_transcript_segment),
+                        ]
+                        result_tokens.extend(tokens[:: 1 if is_bullet else -1])
                     else:
                         result_tokens.append(formatted[markdown_pos])
                     if op == "insert":
@@ -366,7 +444,6 @@ class Aligner:
                     last_transcript_segment = new_transcript_segment
                     last_markdown_paragraph = new_markdown_paragraph
                     last_is_header = current_is_header
-                    last_markdown_pos = markdown_pos
                     if op in ["equal", "replace"]:
                         last_transcript_pos = transcript_pos
             else:
@@ -376,82 +453,70 @@ class Aligner:
         if last_transcript_segment is not None and not last_is_header:
             result_tokens.append(end(last_transcript_segment))
             last_transcript_segment = None
+        result_tokens.append("\n")
 
-        if last_transcript_pos is not None:
-            if self.current_block_start == last_transcript_pos + 1:
-                raise NoTokensError("Stuck on the same block")
-            self.current_block_start = last_transcript_pos + 1
-            self.current_block_end = self.current_block_start
-        else:
-            raise NoTokensError("No tokens were pushed")
+        self.current_block_start = self._transform_transcript_end
+        self.current_block_end = self.current_block_start
 
-        if (
-            (self.current_block_start != len(self.transcript))
-            and context_started
-            and context_transcript_pos is not None
-            and context_markdown_pos is not None
-        ):
-            self.context = formatted.get_markdown_str(context_markdown_pos).strip(" \n")
-            self.current_context_size = len(formatted) - context_markdown_pos - 1
-            self.context_block_start = context_transcript_pos
-            self.result_tokens.extend(result_tokens[:context_result_pos])
-        else:
-            self.result_tokens.extend(result_tokens)
-            self.context_block_start = self.current_block_start
-            self.context = ""
-            self.current_context_size = 0
+        self.context = formatted.get_markdown_str(markdown_context_cut).strip(" \n")
+        self.current_context_size = len(self.formatted) - markdown_context_cut - 1
+        self.context_block_start = (
+            context_transcript_pos
+            if not context_transcript_pos is None
+            else self.current_block_start
+        )
 
-        self.log_result(context_markdown_pos, formatted)
+        self.result_tokens.extend(result_tokens)
+        self.log_result(markdown_context_cut)
 
         return self.next_block()
 
-    def log_alignment(self, transform, formatted):
+    def log_alignment(self):
         if self.debug:
             print_alignment(
-                transform,
+                self.transform,
                 self.transcript.tokens[
                     self.context_block_start : self.current_block_end
                 ],
-                formatted.tokens,
+                self.formatted.tokens,
             )
 
     def log_result(
         self,
         context_markdown_pos,
-        formatted: MarkdownResponse,
     ):
         if self.debug:
             print_parts("R>", self.result_tokens[-5:], self.context)
             if not context_markdown_pos is None:
                 print_parts(
                     "M>",
-                    formatted.get_markdown_str(
+                    self.formatted.get_markdown_str(
                         context_markdown_pos - 5, context_markdown_pos
                     ),
                     self.context,
                 )
             print_parts(
                 "C>",
-                self.transcript.tokens[
+                self.transcript[
                     self.context_block_start - 5 : self.context_block_start
                 ],
-                self.transcript.tokens[
+                self.transcript[
                     self.context_block_start : self.context_block_start + 5
                 ],
             )
             print_parts(
                 "T>",
-                self.transcript.tokens[
+                self.transcript[
                     self.current_block_start - 5 : self.current_block_start
                 ],
-                self.transcript.tokens[
+                self.transcript[
                     self.current_block_start : self.current_block_start + 5
                 ],
             )
 
     def get_result(self):
         """Get result of formatting."""
-        return "".join(self.result_tokens)
+        return "".join(self.result_tokens).strip(" \n")
 
     def is_last_block(self):
         """Check if the last block is reached."""

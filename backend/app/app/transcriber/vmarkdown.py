@@ -395,7 +395,7 @@ def format_transcription(
         block_size=1200,
         block_delta=400,
         context_size=400,
-        only_text_context_size=200,
+        context_size_delta=200,
     )
 
     stuck_count = 0
