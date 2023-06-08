@@ -1,14 +1,15 @@
 from pathlib import Path
 import heapq
+import bisect
 import re
 import json
-from typing import List
+from typing import List, Optional
 import Levenshtein as lev
 from indexedproperty import indexedproperty
 
 r_bullet = r"\s*(?:[-\*\+]|\d+\.) "
-r_word = r"[\w'-\*\~_]+"
-r_punctuation = r"[\w\'\-\*\~\_]"
+r_word = r"[\w\'\-\*\~\_]+"
+r_punctuation = r"[\.\,\?\!\:\;]"
 
 
 class Transcript:
@@ -111,7 +112,7 @@ class MarkdownResponse:
         for marker in ["markdown", "result"]:
             if line.find(marker) > 0:
                 return (
-                    markdown[first_paragraph_end + 2 :]
+                    markdown[first_paragraph_end + len(self.marker_paragraph) :]
                     if first_paragraph_end > 0
                     else ""
                 )
@@ -141,17 +142,19 @@ class MarkdownResponse:
     def __getitem__(self, key):
         return self.tokens[key]
 
-    def get_markdown_str(self, start: int = 0, end: int = -1):
+    def get_markdown_str(self, start: int = 0, end: Optional[int] = None):
         """Get markdown string from tokens."""
         if start >= len(self):
             return ""
         result: List[str] = []
         if start < 0:
             start = len(self) + start
-        if end < 0:
+        if end is None:
+            end = len(self)
+        elif end < 0:
             end = len(self) + end
         last_paragraph = self.as_paragraph[start]
-        for i in range(start, end + 1):
+        for i in range(start, end):
             if self.as_paragraph[i] != last_paragraph:
                 if result[-1] == " ":
                     result[-1] = self.marker_paragraph
@@ -187,6 +190,8 @@ class MarkdownResponse:
                     for pos in [position + i, position - i]:
                         if 0 <= pos < len(self) and self[pos] in [".", "!", "?"]:
                             sentence_start = pos + 1
+                            if self[sentence_start] == " ":
+                                sentence_start += 1
                             break
                     if sentence_start is not None:
                         ideal_cut = sentence_start
@@ -331,12 +336,26 @@ class Aligner:
                     )
                 )
             else:
-                self.current_block_end = self.transform[i][2]
+                self.current_block_end = self.transform[i][2] + self.context_block_start
                 self._align(self.formatted)
 
     @property
     def _transform_transcript_end(self):
-        return self.transform[-1][2]+ self.context_block_start
+        return self.transform[-1][2] + self.context_block_start
+
+    @property
+    def _transform_markdown_end(self):
+        return self.transform[-1][4]
+
+    @indexedproperty
+    def _transform_transcript2markdown(self, index):
+        index = index - self.context_block_start
+        assert index >= 0
+        i = bisect.bisect_left(self.transform, index, key=lambda x: x[1])
+        if i == len(self.transform):
+            return self.transform[-1][3] + index - self.transform[-1][1]
+        else:
+            return self.transform[i][3] + index - self.transform[i][1]
 
     def push(self, formatted: MarkdownResponse):
         """Push result of formatting.
@@ -373,11 +392,15 @@ class Aligner:
         self._align(formatted)
         self._adjust_current_block()
         markdown_context_cut = (
-            self._transform_transcript_end
+            self._transform_markdown_end
             if self._transform_transcript_end >= len(self.transcript)
             else self.formatted.find_nearest_cut(
                 len(self.formatted) - self.context_size, self.context_size_delta
             )
+        )
+        markdown_context_cut = max(
+            markdown_context_cut,
+            self._transform_transcript2markdown[self.context_block_start],
         )
 
         last_markdown_paragraph = 0
@@ -453,7 +476,7 @@ class Aligner:
         if last_transcript_segment is not None and not last_is_header:
             result_tokens.append(end(last_transcript_segment))
             last_transcript_segment = None
-        result_tokens.append("\n")
+        result_tokens.append("\n") # check if we need this
 
         self.current_block_start = self._transform_transcript_end
         self.current_block_end = self.current_block_start

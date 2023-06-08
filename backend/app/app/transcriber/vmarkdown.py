@@ -1,3 +1,4 @@
+import time
 import openai
 import os
 import logging
@@ -88,8 +89,19 @@ def get_prompt(text, context=None):
 def process(
     system_prompt, user_prompt, model="gpt-3.5-turbo", temperature=0.0, attempts=5
 ):
+    retry_time = 0  
+    def handle_error(e):
+        retry_time = e.retry_after if hasattr(e, 'retry_after') else 30
+        logger.warning("API error %s occurred.",e,exc_info=e)
+        return retry_time
+    
     for _ in range(attempts):
         try:
+
+            if retry_time > 0:
+                logger.warning("Retrying in %s seconds...",retry_time,exc_info=retry_time)
+                time.sleep(retry_time)
+                
             response = openai.ChatCompletion.create(
                 model=model,
                 messages=user_prompt,
@@ -98,9 +110,16 @@ def process(
                 api_key=settings.OPENAI_API,
             )
             return response["choices"][0]["message"]["content"]
-        except openai.error.Timeout as e:
-            print(e)
-            continue
+        
+        except openai.error.Timeout as exception:
+            retry_time = handle_error(exception)
+        except openai.error.RateLimitError as exception:
+            retry_time = handle_error(exception)
+        except openai.error.APIError as exception:
+            retry_time = handle_error(exception)
+        except OSError as exception:
+            retry_time = handle_error(exception)
+        
     raise Exception("Failed to get response")
 
 

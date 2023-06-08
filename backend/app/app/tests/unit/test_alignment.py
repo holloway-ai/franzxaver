@@ -59,6 +59,18 @@ def test_markdown_list():
     assert markdown.tokens[0] == "1. ", markdown.tokens[0]
     assert markdown.tokens[4] == "\n  - ", markdown.tokens[4]
     
+def test_markdown_cut():
+    from app.transcriber.alignment import MarkdownResponse
+    markdown = MarkdownResponse(Path("test_data/cutoff/0_0_1469_result.md"))
+    context_size=400
+    context_size_delta=200
+    cut_pos = markdown.find_nearest_cut(len(markdown ) - context_size, context_size_delta)
+    cut_test = markdown.get_markdown_str(cut_pos)
+    assert cut_test[0] == cut_test[0].capitalize()
+    assert cut_test[-1] in [".","!","?"]
+    
+    
+    
 
 
 @pytest.mark.parametrize(
@@ -215,8 +227,12 @@ def update_synthetic_block(current_block, step):
             + "\n\n"
             + current_block[end:]
         )
+        
     if step // 2 != 0:
         current_block = "Sure, here's the text in markdown format:\n\n" + current_block
+    else:
+        tokens = list(re.finditer(r"[\w\'\-\*\~\_]+", current_block))
+        current_block= current_block[:tokens[-5].end()]
 
     for text, replacement in replacements:
         current_block = current_block.replace(text, str(replacement))
@@ -314,9 +330,10 @@ def test_long_text_alignment():
         MarkdownResponse,
         Aligner,
     )
-    transcript_path = Path("test_data/long_text/transcript.json")
+    #transcript_path = Path("test_data/long_text/transcript.json")
+    transcript_path = Path("test_data/pydata/header/transcript.json")
     transcript = Transcript(transcript_path)
-    formatted_path = Path("test_data/long_text/0_0_834_result.md")
+    formatted_path = Path("test_data/pydata/header/0:0_result.md")
     formatted = MarkdownResponse(formatted_path)
     aligner = Aligner(
         transcript=transcript,
@@ -328,6 +345,7 @@ def test_long_text_alignment():
     block =  aligner.first_block()
     #assert aligner.current_block_end == 834
     next_block = aligner.push(formatted)
+    assert next_block == ""
     result = aligner.get_result()
     print(result)
     #assert result.startswith("## Replace with header")
