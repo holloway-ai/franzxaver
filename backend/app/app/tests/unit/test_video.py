@@ -5,11 +5,16 @@ import pytest
 import json
 import re
 
-data_path = Path("test_data/pydata")
+data_path = Path("test_data/samples")
 video_path = data_path / "video.mkv"
 audio_path = data_path / "audio.mp4"
 # transcript_path = data_path / "transcript_short.json"
-transcript_path = data_path / "transcript.json"
+#transcript_path = data_path / "transcript.json"
+#transcript_path = data_path / "list"/ "transcript.json"
+transcript_path = data_path / "header"/ "transcript.json"
+#transcript_path = data_path / "bug_context2"/ "transcript.json"
+#transcript_path = data_path / "bug_context"/ "transcript.json"
+#transcript_path = data_path / "cutoff"/ "transcript.json"
 slides_path = data_path / "slides.json"
 markdown_path = data_path / "result.md"
 video_url = "https://youtu.be/gUNWHrSxbBY"

@@ -5,7 +5,7 @@ import codecs
 import pytest
 import asyncio
 import time
-from pydantic import parse_obj_as,parse_raw_as
+from pydantic import parse_obj_as, parse_raw_as
 
 from async_asgi_testclient import TestClient as AsyncTestClient
 
@@ -14,7 +14,7 @@ from app.core.config import settings
 from app.schemas.video import Result, Status
 from app.main import app
 
-
+@pytest.mark.skip(reason="not a local test")
 @pytest.mark.asyncio
 async def test_video_all(
     api_token_headers:Dict[str, str]
