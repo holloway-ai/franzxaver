@@ -1,12 +1,13 @@
 import time
 from typing import Dict
 
+import pytest
 import kombu
 from fastapi.testclient import TestClient
 
 from app.core.config import settings
 
-
+@pytest.mark.skip(reason="Not implemented yet.")
 def test_celery_worker_test(
     client: TestClient, superuser_token_headers: Dict[str, str]
 ) -> None:

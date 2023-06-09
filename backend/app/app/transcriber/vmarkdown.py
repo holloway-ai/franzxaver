@@ -439,6 +439,10 @@ def format_transcription(
 
         dump_text(formatted_result, f"{state_prefix}_result.md")
         formatted = MarkdownResponse(formatted_result)
+        cut_pos = formatted.find_long_paragraph_start(400)
+        if cut_pos > 0:
+            formatted = MarkdownResponse(formatted.get_markdown_str(0, cut_pos))
+            logger.warning("cutting result to %s tokens",cut_pos,exc_info=cut_pos)
         current_block = aligner.push(formatted)
 
         if progress_callback is not None:

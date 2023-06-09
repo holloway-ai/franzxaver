@@ -204,6 +204,14 @@ class MarkdownResponse:
                         ideal_cut = sentence_start
                         break
         return ideal_cut
+    def find_long_paragraph_start(self, length: int):
+        last_paragraph = 0
+        for i, paragraph_start in enumerate(self.paragraphs):
+            if paragraph_start - last_paragraph > length:
+                return last_paragraph
+            last_paragraph = paragraph_start
+        return -1
+        
 
     @indexedproperty
     def is_bullet_marker(self, position: int):
