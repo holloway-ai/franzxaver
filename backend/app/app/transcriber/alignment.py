@@ -45,11 +45,11 @@ class Transcript:
         """Load a transcript from a dict."""
         self.tokens = []
         self.as_segment = []
-        self.as_first_token = {}
+        self.as_first_token = []
         self.segments = transcript["segments"]
         for sed_n, seg in enumerate(self.segments):
-            self.as_first_token[sed_n] = len(self.tokens)
-            for token in Transcript.re_tokens.split(seg["text"].strip()):
+            self.as_first_token.append(len(self.tokens))
+            for token in Transcript.re_tokens.split(seg["text"].strip(" \n")):
                 if token:
                     self.tokens.append(token)
                     self.as_segment.append(sed_n)
@@ -106,6 +106,8 @@ class MarkdownResponse:
             return markdown
         first_paragraph_end = markdown.find(self.marker_paragraph)
         if first_paragraph_end > 0:
+            if first_paragraph_end <len(markdown)-1 and markdown[first_paragraph_end+1] == "\n":
+                first_paragraph_end += 1
             line = markdown[:first_paragraph_end].lower()
         else:
             line = markdown.lower()
@@ -117,6 +119,11 @@ class MarkdownResponse:
                     else ""
                 )
         return markdown
+
+    def _append_token(self, token, par_n, is_header):
+        self.tokens.append(token)
+        self.as_paragraph.append(par_n)
+        self.is_header.append(is_header)
 
     def parse(self, markdown, skip_header: bool = True):
         """Parse a markdown string."""
@@ -132,9 +139,8 @@ class MarkdownResponse:
             assert par_n == len(self.paragraphs) - 1
             for token in self.re_tokens.split(par):
                 if token:
-                    self.tokens.append(token)
-                    self.as_paragraph.append(par_n)
-                    self.is_header.append(is_header)
+                    self._append_token(token, par_n, is_header)
+            self._append_token(" ", par_n, is_header)
 
     def __len__(self):
         return len(self.tokens)
@@ -157,15 +163,16 @@ class MarkdownResponse:
         for i in range(start, end):
             if self.as_paragraph[i] != last_paragraph:
                 if result[-1] == " ":
-                    result[-1] = self.marker_paragraph
-                # elif self.tokens[i] ==" " :
-                #    result.append("\n\n")
+                    result[-1] = self.marker_paragraph * (
+                        self.as_paragraph[i] - last_paragraph
+                    )
                 else:
-                    result.append(self.marker_paragraph)
-                    result.append(self.tokens[i])
+                    result.append(
+                        self.marker_paragraph * (self.as_paragraph[i] - last_paragraph)
+                    )
                 last_paragraph = self.as_paragraph[i]
-            else:
-                result.append(self.tokens[i])
+
+            result.append(self.tokens[i])
 
         return "".join(result)
 
@@ -232,7 +239,7 @@ class Aligner:
     is_complete: returns True if all text has been formatted
     get_result: returns formatted text with markdown and timestamps
     """
-
+    re_timestamp = re.compile(r"\{~\d+(?:\.\d+)?\}")
     def __init__(
         self,
         transcript: Transcript,
@@ -430,25 +437,41 @@ class Aligner:
                         break
                     new_markdown_paragraph = formatted.as_paragraph[markdown_pos]
                     current_is_header = formatted.is_header[markdown_pos]
+                    is_empty_token = formatted.tokens[markdown_pos] in [" ", "\n",""]
+                    is_new_paragraph = last_markdown_paragraph != new_markdown_paragraph
+                    is_bullet = self.formatted.is_bullet_marker[markdown_pos]
 
                     is_segment_change = (
                         new_transcript_segment != last_transcript_segment
                     )
-                    is_new_paragraph = last_markdown_paragraph != new_markdown_paragraph
-                    is_bullet = self.formatted.is_bullet_marker[markdown_pos]
+
 
                     if (
                         not last_transcript_segment is None
                         and (is_segment_change or is_new_paragraph or is_bullet)
                         and not last_is_header
+                        and result_tokens
                     ):
-                        tokens = [result_tokens.pop(), end(last_transcript_segment)]
-                        result_tokens.extend(
-                            tokens[:: -1 if tokens[0] in [" ", "\n"] else 1]
-                        )
+                        spaces_tokens = []
+                        while result_tokens and result_tokens[-1] in ["", " ", "\n"]:
+                            spaces_tokens.append(result_tokens.pop())
+                        if  self.re_timestamp.match(result_tokens[-1]):
+                            result_tokens.pop()
+                            result_tokens.extend(spaces_tokens)
+                        else:
+                            result_tokens.extend(spaces_tokens)
+                            tokens = [result_tokens.pop(), end(last_transcript_segment)]
+                            result_tokens.extend(
+                                tokens[:: -1 if tokens[0] in [""," ", "\n"] else 1]
+                            )
 
                     if is_new_paragraph:
-                        result_tokens.append("\n\n")
+                        if not (
+                            len(result_tokens) > 2
+                            and result_tokens[-1] == "\n"
+                            and result_tokens[-2] == "\n"
+                        ):
+                            result_tokens.append("\n")
 
                     if (
                         not new_transcript_segment is None
@@ -476,7 +499,7 @@ class Aligner:
         if last_transcript_segment is not None and not last_is_header:
             result_tokens.append(end(last_transcript_segment))
             last_transcript_segment = None
-        result_tokens.append("\n") # check if we need this
+        result_tokens.append("\n")  # check if we need this
 
         self.current_block_start = self._transform_transcript_end
         self.current_block_end = self.current_block_start

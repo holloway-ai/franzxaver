@@ -236,9 +236,10 @@ def update_synthetic_block(current_block, step):
 
     for text, replacement in replacements:
         current_block = current_block.replace(text, str(replacement))
-    current_block = re.sub(r"\s*\n{2,}\s?", "\n\n", current_block)
-    current_block = re.sub(r"\s*\n\s?", "\n", current_block)
+    current_block = re.sub(r" *\n{2,} ?", "\n\n", current_block)
+    current_block = re.sub(r"( +\n|\n ?)", "\n", current_block)
     # current_block = current_block.replace("\n"*4, "\n"*2)
+    current_block = current_block.strip()
     return current_block
 
 
@@ -304,13 +305,13 @@ def test_alignment():
     assert missing_words / word_count < 0.21
 
     for par in result.split("\n"):
-        if par == "":
+        if par in ["", " "]:
             continue
         if not par.startswith("#"):
             assert par.find("##") < 0, par
             assert par.find("markdown") < 0, par
             assert (
-                not re.match(r"^\s*((?:[-\*\+]|\d+\.) )?(\{~\d+(\.\d+)?\}).*(\{~\d+(\.\d+)?\})[\:\.\!\?]?$", par,re.S) is None
+                not re.match(r"^\s*((?:[-\*\+]|\d+\.) )?(\{~\d+(\.\d+)?\}).*(\{~\d+(\.\d+)?\})[\:\.\!\?]?\s*$", par,re.S) is None
             ), par
     broken_highlights = re.search(r"\*{2}(?:[\w'-]+\{~\d+(?:\.\d+)?|\{~\d+(?:\.\d+)?)[\w'-]+\}\*{2}", result)
     assert broken_highlights is None, broken_highlights.group(0)
