@@ -29,6 +29,6 @@ jobs:
         
       - name: Build compose file
         run: |  
-          export TAG=$(echo ${{ github.sha}} | cut -c 1-2)
+          export TAG=$(echo ${{ github.sha}} | cut -c 1-7)
           docker-compose build
           docker-compose push
