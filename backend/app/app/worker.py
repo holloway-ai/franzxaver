@@ -70,7 +70,7 @@ def process_video(video=schemas.VideoRequest) -> schemas.Result:
         vmarkdown = format_transcription(
             transcript, update_status, 20, 100, dump_path=dump_path, slides=slides
         )
-        vmarkdown = f"\n?[]({video.url})\n\n{vmarkdown}"
+        vmarkdown = f"\n?[video]({video.url})\n\n{vmarkdown}"
 
         res = schemas.Status(
             progress=100,
