@@ -355,6 +355,36 @@ def test_short_text_alignment():
     result = aligner.get_result()
     print(result)
     #assert result.startswith("## Replace with header")
+
+def test_real_text_alignment():
+    from app.transcriber.alignment import (  # pylint: disable=C0415
+        Transcript,
+        MarkdownResponse,
+        Aligner,
+    )
+    sample_path = Path("test_data/samples/stuck")
+    transcript_path = sample_path / "transcript.json"
+    transcript = Transcript(transcript_path)
+    formatted_paths = [ Path(path) for path in sample_path.glob("*_result.md")]
+
+    aligner = Aligner(
+        transcript=transcript,
+        block_size=1200,
+        block_delta=400,
+        context_size=400,
+        context_size_delta=200,
+    )
+    next_block =  aligner.first_block()
+    for formatted_path in formatted_paths:
+        formatted = MarkdownResponse(formatted_path)
+        next_block = aligner.push(formatted)
     
+    result = aligner.get_result()
+    print(result)
+    assert next_block == ""
+    
+
+    #assert result.startswith("## Replace with header")
+
     
     

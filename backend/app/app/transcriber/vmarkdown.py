@@ -100,6 +100,8 @@ def process(
             retry_time = handle_error(exception)
         except OSError as exception:
             retry_time = handle_error(exception)
+        except openai.error.ServiceUnavailableError as exception:
+            retry_time = handle_error(exception)
         
     raise Exception("Failed to get response")
 
@@ -173,8 +175,18 @@ def format_transcription(
     progress_seg = (total_steps - step) / len(transcript)
 
     current_block = aligner.first_block()
+    last_context_block_start = None
     while current_block:
-
+ 
+        if last_context_block_start == aligner.context_block_start:
+            logger.warning("Stuck at %s attempt %s ", aligner.context_block_start, stuck_count )
+            stuck_count+=1
+            if stuck_count > 3:
+                break
+        else:
+            last_context_block_start = aligner.context_block_start
+            stuck_count = 0
+            
         state_prefix = f"{aligner.context_block_start}_{aligner.current_block_start}_{aligner.current_block_end}"
         dump_text(current_block, f"{state_prefix}_request.md")
         prompt = get_prompt(current_block)
@@ -192,8 +204,18 @@ def format_transcription(
         formatted = MarkdownResponse(formatted_result)
         cut_pos = formatted.find_long_paragraph_start(400)
         if cut_pos > 0:
-            formatted = MarkdownResponse(formatted.get_markdown_str(0, cut_pos))
-            logger.warning("cutting result to %s tokens",cut_pos,exc_info=cut_pos)
+            if stuck_count < 3:
+                cut_result = formatted.get_markdown_str(0, cut_pos)
+                dump_text(cut_result, f"{state_prefix}_cut_{cut_pos}_result.md")
+                formatted = MarkdownResponse(cut_result)
+                logger.warning("cutting result to %s tokens",cut_pos,exc_info=cut_pos)
+                temperature = 0.07
+            else:
+                logger.warning("Should be cutted at %s tokens but we skip as stuck",cut_pos,exc_info=cut_pos)
+                
+
+        else:
+            temperature = 0.0
         current_block = aligner.push(formatted)
 
         if progress_callback is not None:
